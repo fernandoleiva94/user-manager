@@ -1,0 +1,9 @@
+com/sevenb/user_manager/service/RoleService.class
+com/sevenb/user_manager/repository/UserRepository.class
+com/sevenb/user_manager/controller/RoleController.class
+com/sevenb/user_manager/entity/UserEntity.class
+com/sevenb/user_manager/controller/UserController.class
+com/sevenb/user_manager/repository/RoleRepository.class
+com/sevenb/user_manager/UserManagerApplication.class
+com/sevenb/user_manager/entity/RoleEntity.class
+com/sevenb/user_manager/service/UserService.class

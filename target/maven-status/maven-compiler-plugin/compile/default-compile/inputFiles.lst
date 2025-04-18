@@ -1,0 +1,9 @@
+/home/fernando/Desktop/SERVICIOS SEVEN-B/QAS/user-manager/src/main/java/com/sevenb/user_manager/UserManagerApplication.java
+/home/fernando/Desktop/SERVICIOS SEVEN-B/QAS/user-manager/src/main/java/com/sevenb/user_manager/controller/RoleController.java
+/home/fernando/Desktop/SERVICIOS SEVEN-B/QAS/user-manager/src/main/java/com/sevenb/user_manager/controller/UserController.java
+/home/fernando/Desktop/SERVICIOS SEVEN-B/QAS/user-manager/src/main/java/com/sevenb/user_manager/entity/RoleEntity.java
+/home/fernando/Desktop/SERVICIOS SEVEN-B/QAS/user-manager/src/main/java/com/sevenb/user_manager/entity/UserEntity.java
+/home/fernando/Desktop/SERVICIOS SEVEN-B/QAS/user-manager/src/main/java/com/sevenb/user_manager/repository/RoleRepository.java
+/home/fernando/Desktop/SERVICIOS SEVEN-B/QAS/user-manager/src/main/java/com/sevenb/user_manager/repository/UserRepository.java
+/home/fernando/Desktop/SERVICIOS SEVEN-B/QAS/user-manager/src/main/java/com/sevenb/user_manager/service/RoleService.java
+/home/fernando/Desktop/SERVICIOS SEVEN-B/QAS/user-manager/src/main/java/com/sevenb/user_manager/service/UserService.java
