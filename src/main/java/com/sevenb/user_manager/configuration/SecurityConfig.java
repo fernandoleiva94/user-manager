@@ -27,13 +27,18 @@ public class SecurityConfig {
         http
                 .csrf(AbstractHttpConfigurer::disable) // Deshabilita CSRF si es necesario
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.POST,"/api/users").permitAll() // Endpoints públicos
+                        .requestMatchers(HttpMethod.OPTIONS, "/api/**").permitAll()
+                        .requestMatchers(HttpMethod.POST,"/api/**").permitAll() // Endpoints públicos
                         .anyRequest().authenticated() // Resto de endpoints requieren autenticación
                 )
                 .httpBasic(withDefaults()); // Usa el método withDefaults() para la autenticación básica
 
         return http.build();
     }
+
+
+
+
     }
 
 

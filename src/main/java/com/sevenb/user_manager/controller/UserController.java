@@ -1,5 +1,6 @@
 package com.sevenb.user_manager.controller;
 
+import com.sevenb.user_manager.dto.UserResponseDto;
 import com.sevenb.user_manager.entity.UserEntity;
 import com.sevenb.user_manager.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,16 +33,11 @@ public class UserController {
     }
 
     @PostMapping
-    public ResponseEntity<UserEntity> createUser(@RequestBody UserEntity user) {
+    public ResponseEntity<UserResponseDto> createUser(@RequestBody UserEntity user) {
         if (userService.existsByUsername(user.getUsername())) {
             return ResponseEntity.badRequest().body(null);
         }
-
-        UserEntity createdUser = userService.createUser(
-                user.getUsername(),
-                user.getPassword(),
-                user.getRoles()
-        );
+        UserResponseDto createdUser = userService.createUser(user);
         return ResponseEntity.ok(createdUser);
     }
 
@@ -50,7 +46,7 @@ public class UserController {
             @PathVariable Long id,
             @RequestBody UserEntity user) {
 
-        UserEntity updatedUser = userService.updateUser(id, user.getPassword(), user.getRoles());
+        UserEntity updatedUser = userService.updateUser(id, user.getPassword(), user.getRole());
         return ResponseEntity.ok(updatedUser);
     }
 

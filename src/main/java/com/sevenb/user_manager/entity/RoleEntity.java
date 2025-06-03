@@ -1,9 +1,16 @@
 package com.sevenb.user_manager.entity;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 
 @Entity
 @Table(name = "roles")
+@AllArgsConstructor
+@Getter
+@Setter
 public class RoleEntity {
 
     @Id
@@ -18,32 +25,5 @@ public class RoleEntity {
     // Constructor, getters y setters
     public RoleEntity() {}
 
-    public RoleEntity(String name, String description) {
-        this.name = name;
-        this.description = description;
-    }
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
 }
