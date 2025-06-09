@@ -9,7 +9,8 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**") // Ajusta la ruta según sea necesario
-                .allowedOrigins("http://localhost:3000") // Ajusta esto si tu frontend está en otro lugar
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS");
+                .allowedOrigins("http://localhost:3000")
+                .allowedOrigins("https://d4bf-190-192-90-146.ngrok-free.app")// Ajusta esto si tu frontend está en otro lugar
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS").allowCredentials(true);
     }
 }

@@ -1,6 +1,7 @@
 package com.sevenb.user_manager.controller;
 
 
+import com.sevenb.user_manager.dto.PersonResponseDto;
 import com.sevenb.user_manager.dto.RegisterDTO;
 import com.sevenb.user_manager.dto.UserResponseDto;
 import com.sevenb.user_manager.entity.Person;
@@ -27,10 +28,8 @@ public class PersonController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Person> getPersonById(@PathVariable Long id) {
-        return personService.getPersonById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<PersonResponseDto> getPersonById(@PathVariable Long id) {
+        return ResponseEntity.ok(personService.getPersonById(id));
     }
 
     @PostMapping
@@ -42,9 +41,9 @@ public class PersonController {
 
 
     @PutMapping("/{id}")
-    public ResponseEntity<Person> updatePerson(@PathVariable Long id, @RequestBody Person person) {
+    public ResponseEntity<PersonResponseDto> updatePerson(@PathVariable Long id, @RequestBody Person person) {
         try {
-            Person updatedPerson = personService.updatePerson(id, person);
+            PersonResponseDto updatedPerson = personService.updatePerson(id, person);
             return ResponseEntity.ok(updatedPerson);
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();

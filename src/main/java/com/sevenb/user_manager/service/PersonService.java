@@ -1,5 +1,6 @@
 package com.sevenb.user_manager.service;
 
+import com.sevenb.user_manager.dto.PersonResponseDto;
 import com.sevenb.user_manager.dto.RegisterDTO;
 import com.sevenb.user_manager.dto.UserResponseDto;
 import com.sevenb.user_manager.entity.Person;
@@ -28,8 +29,26 @@ public class PersonService {
         return personRepository.findAll();
     }
 
-    public Optional<Person> getPersonById(Long id) {
-        return personRepository.findById(id);
+    public PersonResponseDto getPersonById(Long id) {
+        Person person = personRepository.findById(id).orElseThrow(()-> new RuntimeException("Recipe not found"));;
+        return toPersonDto(person);
+
+    }
+
+    private PersonResponseDto toPersonDto ( Person person){
+        PersonResponseDto personResponseDto = new PersonResponseDto();
+        personResponseDto.setId(person.getId());
+        personResponseDto.setEmail(person.getEmail());
+        personResponseDto.setAddress(person.getAddress());
+        personResponseDto.setPhone(person.getPhone());
+        personResponseDto.setDocumentType(person.getDocumentType());
+        personResponseDto.setDocumentNumber(person.getDocumentNumber());
+        personResponseDto.setFirstName(person.getFirstName());
+        personResponseDto.setLastName(person.getLastName());
+        personResponseDto.setTaxCondition(person.getTaxCondition());
+
+        return personResponseDto;
+
     }
 
     public Person createPerson(Person person) {
@@ -42,7 +61,7 @@ public class PersonService {
 
 
 
-    public Person updatePerson(Long id, Person updatedPerson) {
+    public PersonResponseDto updatePerson(Long id, Person updatedPerson) {
         return personRepository.findById(id).map(person -> {
             person.setFirstName(updatedPerson.getFirstName());
             person.setLastName(updatedPerson.getLastName());
@@ -52,7 +71,7 @@ public class PersonService {
             person.setPhone(updatedPerson.getPhone());
             person.setAddress(updatedPerson.getAddress());
             person.setTaxCondition(updatedPerson.getTaxCondition());
-            return personRepository.save(person);
+            return toPersonDto(personRepository.save(person));
         }).orElseThrow(() -> new RuntimeException("Person not found"));
     }
 
