@@ -12,7 +12,7 @@ public class SubscriptionService {
 
     private final RestTemplate restTemplate;
 
-    @Value("${subscriptions.service.url}")
+    @Value("${user.manager.service.subscriptionsServiceUrl}")
     private String subscriptionServiceUrl;
 
     public SubscriptionService(RestTemplate restTemplate) {
