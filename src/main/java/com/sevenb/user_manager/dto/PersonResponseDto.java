@@ -14,4 +14,5 @@ public class PersonResponseDto {
     private String phone;
     private String address;
     private String taxCondition;
+    private String tenantId;
 }

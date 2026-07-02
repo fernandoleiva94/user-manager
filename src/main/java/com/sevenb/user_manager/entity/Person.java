@@ -39,6 +39,9 @@ public class Person {
     @Column(name = "tax_condition")
     private String taxCondition;
 
+    @Column(name = "tenant_id")
+    private String tenantId;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
 

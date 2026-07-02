@@ -46,6 +46,7 @@ public class PersonService {
         personResponseDto.setFirstName(person.getFirstName());
         personResponseDto.setLastName(person.getLastName());
         personResponseDto.setTaxCondition(person.getTaxCondition());
+        personResponseDto.setTenantId(person.getTenantId());
 
         return personResponseDto;
 
@@ -71,6 +72,7 @@ public class PersonService {
             person.setPhone(updatedPerson.getPhone());
             person.setAddress(updatedPerson.getAddress());
             person.setTaxCondition(updatedPerson.getTaxCondition());
+            person.setTenantId(updatedPerson.getTenantId());
             return toPersonDto(personRepository.save(person));
         }).orElseThrow(() -> new RuntimeException("Person not found"));
     }
