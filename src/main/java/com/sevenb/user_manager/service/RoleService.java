@@ -60,6 +60,11 @@ public class RoleService {
                 .orElseThrow(() -> new RuntimeException("Rol no encontrado: " + roleId));
     }
 
+    public RoleEntity getRoleByNameForTenant(String name, String tenantId) {
+        return roleRepository.findByNameAndTenantId(name, tenantId)
+                .orElseThrow(() -> new RuntimeException("Rol no encontrado: " + name));
+    }
+
     public void seedDefaultRolesForTenant(String tenantId) {
         if (roleRepository.existsByTenantId(tenantId)) return;
 

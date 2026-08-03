@@ -38,7 +38,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
 
             JwtService.JwtClaims claims = jwtService.parseToken(token);
-            TenantContext.set(claims.tenantId(), claims.userId(), claims.ownerId(), claims.role());
+            TenantContext.set(claims.tenantId(), claims.userId(), claims.ownerId(), claims.role(), claims.taxCondition());
 
             List<SimpleGrantedAuthority> authorities = claims.role() != null
                     ? List.of(new SimpleGrantedAuthority("ROLE_" + claims.role()))

@@ -47,7 +47,8 @@ public class JwtService {
             }
 
             String role = claims.get("role", String.class);
-            return new JwtClaims(tenantId, userId, ownerId, role);
+            String taxCondition = claims.get("taxCondition", String.class);
+            return new JwtClaims(tenantId, userId, ownerId, role, taxCondition);
         } catch (UnauthorizedException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -55,5 +56,5 @@ public class JwtService {
         }
     }
 
-    public record JwtClaims(String tenantId, Long userId, Long ownerId, String role) {}
+    public record JwtClaims(String tenantId, Long userId, Long ownerId, String role, String taxCondition) {}
 }

@@ -1,7 +1,6 @@
 package com.sevenb.user_manager.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 
 @Entity
@@ -14,6 +13,7 @@ public class UserEntity {
 
     private String username;
 
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
 
     @ManyToOne
@@ -32,7 +32,6 @@ public class UserEntity {
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
 
-    @JsonIgnore
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
 

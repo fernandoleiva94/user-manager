@@ -30,6 +30,7 @@ public class RegisterService {
         Person person = personService.createPerson(register.getPerson());
         roleService.seedDefaultRolesForTenant(person.getTenantId());
         register.getUser().setPerson(person);
+        register.getUser().setRole(roleService.getRoleByNameForTenant("ADMIN", person.getTenantId()));
         UserResponseDto userResponseDto = userService.createUserForRegister(register.getUser());
         subscriptionService.subscribeFreePlan(person.getId());
         return userResponseDto;
