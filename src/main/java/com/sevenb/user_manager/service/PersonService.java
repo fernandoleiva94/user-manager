@@ -26,10 +26,13 @@ public class PersonService {
 
     private final PersonRepository personRepository;
     private final PermissionGuard permissionGuard;
+    private final BillingTrialService billingTrialService;
 
-    public PersonService(PersonRepository personRepository, PermissionGuard permissionGuard) {
+    public PersonService(PersonRepository personRepository, PermissionGuard permissionGuard,
+                         BillingTrialService billingTrialService) {
         this.personRepository = personRepository;
         this.permissionGuard = permissionGuard;
+        this.billingTrialService = billingTrialService;
     }
 
 
@@ -91,7 +94,9 @@ public class PersonService {
         person.setId(null);
         person.setTenantId(UUID.randomUUID().toString());
         person.setCreatedAt(LocalDateTime.now());
-        return createPerson(person);
+        Person created = createPerson(person);
+        billingTrialService.requestTrialAfterCommit(created, BillingTrialService.SOURCE_PLATFORM_ADMIN);
+        return created;
     }
 
 

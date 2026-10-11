@@ -39,7 +39,7 @@ public class RegisterService {
         register.getUser().setPerson(person);
         register.getUser().setRole(roleService.getRoleByNameForTenant("ADMIN", person.getTenantId()));
         UserResponseDto created = userService.createUserForRegister(register.getUser());
-        billingTrialService.requestTrialAfterCommit(person);
+        billingTrialService.requestTrialAfterCommit(person, BillingTrialService.SOURCE_REGISTER);
         return created;
     }
 }

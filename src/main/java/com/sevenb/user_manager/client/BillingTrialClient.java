@@ -5,85 +5,72 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
-import java.time.Duration;
-import java.util.List;
-
 /**
  * Cliente de la API interna de centauro-billing para crear el trial de un tenant.
- * Reintenta errores de red, 5xx y 429 con el backoff configurado; el resto de los 4xx
- * (incluido 401) no se reintenta.
+ * Hace un solo intento por llamada; los reintentos los programa {@code BillingTrialService}.
  */
 public class BillingTrialClient {
 
     static final String API_KEY_HEADER = "X-Internal-Api-Key";
     private static final Logger log = LoggerFactory.getLogger(BillingTrialClient.class);
 
-    public enum Outcome { CREATED, ALREADY_EXISTS, FAILED }
-
-    @FunctionalInterface
-    public interface Sleeper {
-        void sleep(Duration duration) throws InterruptedException;
+    public enum Result {
+        CREATED,
+        ALREADY_EXISTS,
+        /** Error de red, 5xx o 429: se puede reintentar. */
+        RETRYABLE,
+        /** 400: el body fue rechazado. */
+        BAD_REQUEST,
+        /** Cualquier otro error: no se reintenta. */
+        FAILED
     }
 
     private final RestClient restClient;
     private final String apiKey;
-    private final List<Duration> retryBackoff;
-    private final Sleeper sleeper;
 
-    public BillingTrialClient(RestClient.Builder builder, String baseUrl, String apiKey,
-                              List<Duration> retryBackoff, Sleeper sleeper) {
+    public BillingTrialClient(RestClient.Builder builder, String baseUrl, String apiKey) {
         this.restClient = builder.baseUrl(stripTrailingSlash(baseUrl)).build();
         this.apiKey = apiKey;
-        this.retryBackoff = List.copyOf(retryBackoff);
-        this.sleeper = sleeper;
     }
 
-    public Outcome createTrial(String tenantId, BillingTrialRequest request) {
-        int maxAttempts = retryBackoff.size() + 1;
-        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-            boolean retryable;
-            try {
-                ResponseEntity<Void> response = restClient.post()
-                        .uri("/internal/v1/tenants/{tenantId}/trial", tenantId)
-                        .header(API_KEY_HEADER, apiKey)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(request)
-                        .retrieve()
-                        .toBodilessEntity();
-                if (response.getStatusCode().value() == 201) {
-                    return Outcome.CREATED;
-                }
-                if (response.getStatusCode().is2xxSuccessful()) {
-                    return Outcome.ALREADY_EXISTS;
-                }
-                log.warn("Billing respondio {} al crear el trial del tenant {} (intento {}/{})",
-                        response.getStatusCode().value(), tenantId, attempt, maxAttempts);
-                retryable = false;
-            } catch (RestClientResponseException e) {
-                HttpStatusCode status = e.getStatusCode();
-                retryable = status.is5xxServerError() || status.value() == 429;
-                log.warn("Billing respondio {} al crear el trial del tenant {} (intento {}/{})",
-                        status.value(), tenantId, attempt, maxAttempts);
-            } catch (RuntimeException e) {
-                retryable = true;
-                log.warn("Error de comunicacion con billing al crear el trial del tenant {} (intento {}/{}): {}",
-                        tenantId, attempt, maxAttempts, e.getMessage());
+    public Result createTrial(String tenantId, BillingTrialRequest request) {
+        try {
+            ResponseEntity<Void> response = restClient.post()
+                    .uri("/internal/v1/tenants/{tenantId}/trial", tenantId)
+                    .header(API_KEY_HEADER, apiKey)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request)
+                    .retrieve()
+                    .toBodilessEntity();
+            int status = response.getStatusCode().value();
+            if (status == 201) {
+                return Result.CREATED;
             }
-
-            if (!retryable || attempt == maxAttempts) {
-                return Outcome.FAILED;
+            if (response.getStatusCode().is2xxSuccessful()) {
+                return Result.ALREADY_EXISTS;
             }
-            try {
-                sleeper.sleep(retryBackoff.get(attempt - 1));
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return Outcome.FAILED;
+            log.warn("Billing respondio {} al crear el trial del tenant {}", status, tenantId);
+            return Result.FAILED;
+        } catch (RestClientResponseException e) {
+            HttpStatusCode status = e.getStatusCode();
+            log.warn("Billing respondio {} al crear el trial del tenant {}", status.value(), tenantId);
+            if (status.is5xxServerError() || status.value() == 429) {
+                return Result.RETRYABLE;
             }
+            return status.value() == 400 ? Result.BAD_REQUEST : Result.FAILED;
+        } catch (ResourceAccessException e) {
+            log.warn("Error de comunicacion con billing al crear el trial del tenant {}: {}",
+                    tenantId, e.getMessage());
+            return Result.RETRYABLE;
+        } catch (RuntimeException e) {
+            log.warn("Error inesperado al crear el trial del tenant {} en billing: {}",
+                    tenantId, e.getClass().getName());
+            return Result.FAILED;
         }
-        return Outcome.FAILED;
     }
 
     private static String stripTrailingSlash(String url) {

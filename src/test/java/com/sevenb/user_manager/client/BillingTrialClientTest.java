@@ -2,6 +2,9 @@ package com.sevenb.user_manager.client;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -10,9 +13,6 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.net.SocketTimeoutException;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
@@ -23,15 +23,13 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
+@ExtendWith(OutputCaptureExtension.class)
 class BillingTrialClientTest {
 
     private static final String URL = "http://billing.test/internal/v1/tenants/tenant-1/trial";
-    private static final List<Duration> BACKOFF =
-            List.of(Duration.ofSeconds(2), Duration.ofSeconds(10), Duration.ofSeconds(30));
     private static final BillingTrialRequest REQUEST =
             new BillingTrialRequest("Juan Perez", "empresa@test.com", "USER_MANAGER_REGISTER");
 
-    private final List<Duration> sleeps = new ArrayList<>();
     private MockRestServiceServer server;
     private BillingTrialClient client;
 
@@ -39,7 +37,14 @@ class BillingTrialClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new BillingTrialClient(builder, "http://billing.test/", "clave-secreta", BACKOFF, sleeps::add);
+        client = new BillingTrialClient(builder, "http://billing.test/", "clave-secreta");
+    }
+
+    private BillingTrialClient.Result respond(HttpStatus status) {
+        server.expect(ExpectedCount.once(), requestTo(URL)).andRespond(withStatus(status));
+        BillingTrialClient.Result result = client.createTrial("tenant-1", REQUEST);
+        server.verify();
+        return result;
     }
 
     @Test
@@ -54,9 +59,8 @@ class BillingTrialClientTest {
                 .andExpect(jsonPath("$.planCode").doesNotExist())
                 .andRespond(withStatus(HttpStatus.CREATED));
 
-        assertThat(client.createTrial("tenant-1", REQUEST)).isEqualTo(BillingTrialClient.Outcome.CREATED);
+        assertThat(client.createTrial("tenant-1", REQUEST)).isEqualTo(BillingTrialClient.Result.CREATED);
         server.verify();
-        assertThat(sleeps).isEmpty();
     }
 
     @Test
@@ -64,7 +68,6 @@ class BillingTrialClientTest {
         server.expect(requestTo(URL))
                 .andExpect(jsonPath("$.companyName").doesNotExist())
                 .andExpect(jsonPath("$.billingEmail").doesNotExist())
-                .andExpect(jsonPath("$.source").value("USER_MANAGER_REGISTER"))
                 .andRespond(withStatus(HttpStatus.CREATED));
 
         client.createTrial("tenant-1", new BillingTrialRequest(null, null, "USER_MANAGER_REGISTER"));
@@ -72,72 +75,43 @@ class BillingTrialClientTest {
     }
 
     @Test
-    void okMeansTrialAlreadyExisted() {
-        server.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.OK));
-
-        assertThat(client.createTrial("tenant-1", REQUEST)).isEqualTo(BillingTrialClient.Outcome.ALREADY_EXISTS);
-        server.verify();
-        assertThat(sleeps).isEmpty();
+    void mapsStatusesToResults() {
+        assertThat(respond(HttpStatus.OK)).isEqualTo(BillingTrialClient.Result.ALREADY_EXISTS);
+        server.reset();
+        assertThat(respond(HttpStatus.UNAUTHORIZED)).isEqualTo(BillingTrialClient.Result.FAILED);
+        server.reset();
+        assertThat(respond(HttpStatus.FORBIDDEN)).isEqualTo(BillingTrialClient.Result.FAILED);
+        server.reset();
+        assertThat(respond(HttpStatus.BAD_REQUEST)).isEqualTo(BillingTrialClient.Result.BAD_REQUEST);
+        server.reset();
+        assertThat(respond(HttpStatus.TOO_MANY_REQUESTS)).isEqualTo(BillingTrialClient.Result.RETRYABLE);
+        server.reset();
+        assertThat(respond(HttpStatus.INTERNAL_SERVER_ERROR)).isEqualTo(BillingTrialClient.Result.RETRYABLE);
+        server.reset();
+        assertThat(respond(HttpStatus.SERVICE_UNAVAILABLE)).isEqualTo(BillingTrialClient.Result.RETRYABLE);
     }
 
     @Test
-    void unauthorizedIsNotRetried() {
-        server.expect(ExpectedCount.once(), requestTo(URL)).andRespond(withStatus(HttpStatus.UNAUTHORIZED));
-
-        assertThat(client.createTrial("tenant-1", REQUEST)).isEqualTo(BillingTrialClient.Outcome.FAILED);
-        server.verify();
-        assertThat(sleeps).isEmpty();
-    }
-
-    @Test
-    void otherClientErrorsAreNotRetried() {
-        server.expect(ExpectedCount.once(), requestTo(URL)).andRespond(withStatus(HttpStatus.BAD_REQUEST));
-
-        assertThat(client.createTrial("tenant-1", REQUEST)).isEqualTo(BillingTrialClient.Outcome.FAILED);
-        server.verify();
-        assertThat(sleeps).isEmpty();
-    }
-
-    @Test
-    void serverErrorIsRetriedWithBackoffAndThenGivesUp() {
-        server.expect(ExpectedCount.times(4), requestTo(URL)).andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
-
-        assertThat(client.createTrial("tenant-1", REQUEST)).isEqualTo(BillingTrialClient.Outcome.FAILED);
-        server.verify();
-        assertThat(sleeps).containsExactlyElementsOf(BACKOFF);
-    }
-
-    @Test
-    void tooManyRequestsIsRetried() {
-        server.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
-        server.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.CREATED));
-
-        assertThat(client.createTrial("tenant-1", REQUEST)).isEqualTo(BillingTrialClient.Outcome.CREATED);
-        server.verify();
-        assertThat(sleeps).containsExactly(Duration.ofSeconds(2));
-    }
-
-    @Test
-    void networkErrorIsRetried() {
+    void networkErrorIsRetryable() {
         server.expect(requestTo(URL)).andRespond(withException(new SocketTimeoutException("read timed out")));
-        server.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
-        server.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.OK));
 
-        assertThat(client.createTrial("tenant-1", REQUEST)).isEqualTo(BillingTrialClient.Outcome.ALREADY_EXISTS);
-        server.verify();
-        assertThat(sleeps).containsExactly(Duration.ofSeconds(2), Duration.ofSeconds(10));
+        assertThat(client.createTrial("tenant-1", REQUEST)).isEqualTo(BillingTrialClient.Result.RETRYABLE);
     }
 
     @Test
-    void interruptedBackoffGivesUp() {
-        RestClient.Builder builder = RestClient.builder();
-        MockRestServiceServer local = MockRestServiceServer.bindTo(builder).build();
-        BillingTrialClient interrupted = new BillingTrialClient(builder, "http://billing.test", "k", BACKOFF,
-                d -> { throw new InterruptedException(); });
-        local.expect(ExpectedCount.once(), requestTo(URL)).andRespond(withStatus(HttpStatus.BAD_GATEWAY));
+    void unexpectedExceptionFailsWithoutLoggingItsMessage(CapturedOutput output) {
+        server.expect(requestTo(URL)).andRespond(request -> {
+            throw new IllegalStateException("mensaje-con-datos-sensibles");
+        });
 
-        assertThat(interrupted.createTrial("tenant-1", REQUEST)).isEqualTo(BillingTrialClient.Outcome.FAILED);
-        assertThat(Thread.interrupted()).isTrue();
-        local.verify();
+        assertThat(client.createTrial("tenant-1", REQUEST)).isEqualTo(BillingTrialClient.Result.FAILED);
+        assertThat(output).contains("java.lang.IllegalStateException").doesNotContain("mensaje-con-datos-sensibles");
+    }
+
+    @Test
+    void neverLogsApiKey(CapturedOutput output) {
+        respond(HttpStatus.INTERNAL_SERVER_ERROR);
+
+        assertThat(output).doesNotContain("clave-secreta");
     }
 }
