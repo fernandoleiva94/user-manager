@@ -43,6 +43,7 @@ public class PersonController {
 
 
     @PutMapping("/{id}")
+    @PreAuthorize("@perm.isPlatformAdmin() or @perm.has('SETTINGS_EDIT')")
     public ResponseEntity<PersonResponseDto> updatePerson(@PathVariable Long id, @RequestBody Person person) {
         try {
             PersonResponseDto updatedPerson = personService.updatePerson(id, person);
@@ -53,6 +54,7 @@ public class PersonController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@perm.isPlatformAdmin()")
     public ResponseEntity<Void> deletePerson(@PathVariable Long id) {
         personService.deletePerson(id);
         return ResponseEntity.noContent().build();

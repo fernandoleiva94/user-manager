@@ -144,11 +144,32 @@ class PersonServiceTest {
     @Test
     void tenantUserCannotDeleteOtherCompany() {
         platformAdmin(false);
-        when(personRepository.findByIdAndTenantId(2L, TENANT)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.deletePerson(2L)).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> service.deletePerson(2L)).isInstanceOf(AccessDeniedException.class);
         verify(personRepository, never()).delete(any());
         verify(personRepository, never()).deleteById(any());
+    }
+
+    @Test
+    void tenantUserCannotDeleteOwnCompany() {
+        platformAdmin(false);
+        when(personRepository.findByIdAndTenantId(1L, TENANT)).thenReturn(Optional.of(person(1L, TENANT)));
+        when(personRepository.findById(1L)).thenReturn(Optional.of(person(1L, TENANT)));
+
+        assertThatThrownBy(() -> service.deletePerson(1L)).isInstanceOf(AccessDeniedException.class);
+        verify(personRepository, never()).delete(any());
+        verify(personRepository, never()).deleteById(any());
+    }
+
+    @Test
+    void platformAdminDeleteOfMissingCompanyIsNotFound() {
+        platformAdmin(true);
+        when(personRepository.findById(3L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.deletePerson(3L))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("no encontrada");
+        verify(personRepository, never()).delete(any());
     }
 
     @Test

@@ -106,8 +106,14 @@ public class PersonService {
         return toPersonDto(personRepository.save(person));
     }
 
+    /** Baja de empresa: solo platform admin, incluso para la empresa del propio tenant. */
     public void deletePerson(Long id) {
-        personRepository.delete(getAccessiblePerson(id));
+        if (!permissionGuard.isPlatformAdmin()) {
+            throw new AccessDeniedException("Solo un administrador de la plataforma puede eliminar empresas");
+        }
+        Person person = personRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Persona no encontrada: " + id));
+        personRepository.delete(person);
     }
 
     public void mailValiation(String email){
