@@ -6,6 +6,7 @@ import com.sevenb.user_manager.entity.RoleEntity;
 import com.sevenb.user_manager.service.RoleService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,11 +24,13 @@ public class RoleController {
     }
 
     @PostMapping
+    @PreAuthorize("@perm.has('ROLES_MANAGE')")
     public ResponseEntity<RoleEntity> createRole(@RequestBody RoleEntity role) {
         return ResponseEntity.status(HttpStatus.CREATED).body(roleService.createRole(role));
     }
 
     @GetMapping
+    @PreAuthorize("@perm.hasAny('USERS_MANAGE','ROLES_MANAGE')")
     public ResponseEntity<List<RoleEntity>> getRoles() {
         List<RoleEntity> roles = roleService.getRolesForCurrentTenant();
         if (roles.isEmpty()) return ResponseEntity.noContent().build();
@@ -35,6 +38,7 @@ public class RoleController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@perm.hasAny('USERS_MANAGE','ROLES_MANAGE')")
     public ResponseEntity<RoleEntity> getRoleById(@PathVariable Long id) {
         return roleService.getRoleById(id)
                 .map(ResponseEntity::ok)
@@ -42,6 +46,7 @@ public class RoleController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@perm.has('ROLES_MANAGE')")
     public ResponseEntity<Void> deleteRole(@PathVariable Long id) {
         if (roleService.getRoleById(id).isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -51,6 +56,7 @@ public class RoleController {
     }
 
     @GetMapping("/{id}/permissions")
+    @PreAuthorize("@perm.hasAny('USERS_MANAGE','ROLES_MANAGE')")
     public ResponseEntity<Set<String>> getRolePermissions(@PathVariable Long id) {
         Set<String> codes = roleService.getPermissions(id).stream()
                 .map(PermissionEntity::getCode)
@@ -59,6 +65,7 @@ public class RoleController {
     }
 
     @PutMapping("/{id}/permissions")
+    @PreAuthorize("@perm.has('ROLES_MANAGE')")
     public ResponseEntity<RoleEntity> setRolePermissions(
             @PathVariable Long id,
             @RequestBody RolePermissionsDto dto) {

@@ -5,15 +5,18 @@ public final class TenantContext {
     private static final ThreadLocal<String> tenantId = new ThreadLocal<>();
     private static final ThreadLocal<Long> userId = new ThreadLocal<>();
     private static final ThreadLocal<Long> ownerId = new ThreadLocal<>();
+    private static final ThreadLocal<String> username = new ThreadLocal<>();
     private static final ThreadLocal<String> role = new ThreadLocal<>();
     private static final ThreadLocal<String> taxCondition = new ThreadLocal<>();
 
     private TenantContext() {}
 
-    public static void set(String tenant, Long user, Long owner, String userRole, String userTaxCondition) {
+    public static void set(String tenant, Long user, Long owner, String userName, String userRole,
+                           String userTaxCondition) {
         tenantId.set(tenant);
         userId.set(user);
         ownerId.set(owner);
+        username.set(userName);
         role.set(userRole);
         taxCondition.set(userTaxCondition);
     }
@@ -28,6 +31,10 @@ public final class TenantContext {
 
     public static Long getOwnerId() {
         return ownerId.get();
+    }
+
+    public static String getUsername() {
+        return username.get();
     }
 
     public static String getRole() {
@@ -58,6 +65,7 @@ public final class TenantContext {
         tenantId.remove();
         userId.remove();
         ownerId.remove();
+        username.remove();
         role.remove();
         taxCondition.remove();
     }

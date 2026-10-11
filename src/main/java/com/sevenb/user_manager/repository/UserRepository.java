@@ -15,4 +15,5 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
     List<UserEntity> findByPerson_TenantId(String tenantId);
     Optional<UserEntity> findByIdAndPerson_TenantId(Long id, String tenantId);
     Optional<UserEntity> findByUsernameAndPerson_TenantId(String username, String tenantId);
+    long countByPerson_TenantIdAndRole_NameIgnoreCase(String tenantId, String roleName);
 }

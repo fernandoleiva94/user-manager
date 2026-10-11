@@ -68,6 +68,10 @@ public class UserService {
 
     private final UserPermissionOverrideRepository overrideRepository;
 
+    private final PermissionService permissionService;
+
+    private final CurrentUserService currentUserService;
+
 
 
     @Autowired
@@ -76,7 +80,9 @@ public class UserService {
 
                        PasswordEncoder passwordEncoder, UserMapper userMapper,
 
-                       RoleService roleService, UserPermissionOverrideRepository overrideRepository) {
+                       RoleService roleService, UserPermissionOverrideRepository overrideRepository,
+
+                       PermissionService permissionService, CurrentUserService currentUserService) {
 
         this.userRepository = userRepository;
 
@@ -89,6 +95,10 @@ public class UserService {
         this.roleService = roleService;
 
         this.overrideRepository = overrideRepository;
+
+        this.permissionService = permissionService;
+
+        this.currentUserService = currentUserService;
 
     }
 
@@ -133,6 +143,12 @@ public class UserService {
         if (request.getRoleId() != null) {
 
             RoleEntity role = roleService.getRoleForTenant(request.getRoleId(), tenantId);
+
+            if (RoleService.isAdminRole(role)) {
+
+                assertCurrentUserIsAdmin("Solo un usuario ADMIN puede asignar el rol ADMIN");
+
+            }
 
             userEntity.setRole(role);
 
@@ -190,6 +206,12 @@ public class UserService {
 
         String tenantId = TenantContext.requireTenantId();
 
+        if (RoleService.isAdminRole(user.getRole())) {
+
+            assertCurrentUserIsAdmin("Solo un usuario ADMIN puede modificar a otro usuario ADMIN");
+
+        }
+
 
 
         if (request.getPassword() != null && !request.getPassword().isEmpty()) {
@@ -200,7 +222,9 @@ public class UserService {
 
         if (request.getRoleId() != null) {
 
-            user.setRole(roleService.getRoleForTenant(request.getRoleId(), tenantId));
+            RoleEntity newRole = roleService.getRoleForTenant(request.getRoleId(), tenantId);
+
+            changeRole(user, newRole);
 
         }
 
@@ -217,6 +241,20 @@ public class UserService {
     public void deleteUser(Long id) {
 
         UserEntity user = getUserForCurrentTenant(id);
+
+        if (currentUserService.isCurrentUser(user)) {
+
+            throw new IllegalArgumentException("No podés eliminar tu propio usuario");
+
+        }
+
+        if (RoleService.isAdminRole(user.getRole())) {
+
+            assertCurrentUserIsAdmin("Solo un usuario ADMIN puede eliminar a otro usuario ADMIN");
+
+            assertNotLastAdmin("No se puede eliminar al último usuario ADMIN de la empresa");
+
+        }
 
         userRepository.delete(user);
 
@@ -258,9 +296,15 @@ public class UserService {
 
         UserEntity user = getUserForCurrentTenant(userId);
 
+        if (RoleService.isAdminRole(user.getRole())) {
+
+            assertCurrentUserIsAdmin("Solo un usuario ADMIN puede modificar a otro usuario ADMIN");
+
+        }
+
         RoleEntity role = roleService.getRoleForTenant(roleId, TenantContext.requireTenantId());
 
-        user.setRole(role);
+        changeRole(user, role);
 
         return userMapper.userToUserDto(userRepository.save(user));
 
@@ -287,6 +331,20 @@ public class UserService {
     public void setOverrides(Long userId, UserPermissionOverrideRequest request) {
 
         UserEntity user = getUserForCurrentTenant(userId);
+
+        assertNotCurrentUser(user, "No podés modificar tus propios permisos");
+
+        if (request.getOverrides() == null) {
+
+            throw new IllegalArgumentException("La lista de overrides es obligatoria");
+
+        }
+
+        permissionService.requireExistingCodes(request.getOverrides().stream()
+
+                .map(UserPermissionOverrideRequest.OverrideEntry::getPermissionCode)
+
+                .toList());
 
 
 
@@ -317,6 +375,78 @@ public class UserService {
                 overrideRepository.save(override);
 
             }
+
+        }
+
+    }
+
+
+
+    private void changeRole(UserEntity user, RoleEntity newRole) {
+
+        boolean changes = user.getRole() == null || !newRole.getId().equals(user.getRole().getId());
+
+        if (!changes) {
+
+            return;
+
+        }
+
+        assertNotCurrentUser(user, "No podés cambiar tu propio rol");
+
+        if (RoleService.isAdminRole(newRole)) {
+
+            assertCurrentUserIsAdmin("Solo un usuario ADMIN puede asignar el rol ADMIN");
+
+        }
+
+        if (RoleService.isAdminRole(user.getRole()) && !RoleService.isAdminRole(newRole)) {
+
+            assertNotLastAdmin("No se puede quitar el rol ADMIN al último usuario ADMIN de la empresa");
+
+        }
+
+        user.setRole(newRole);
+
+    }
+
+
+
+    private void assertCurrentUserIsAdmin(String message) {
+
+        if (!currentUserService.isCurrentUserAdmin()) {
+
+            throw new IllegalArgumentException(message);
+
+        }
+
+    }
+
+
+
+    private void assertNotLastAdmin(String message) {
+
+        long admins = userRepository.countByPerson_TenantIdAndRole_NameIgnoreCase(
+
+                TenantContext.requireTenantId(), RoleService.ADMIN_ROLE);
+
+        if (admins <= 1) {
+
+            throw new IllegalArgumentException(message);
+
+        }
+
+    }
+
+
+
+    private void assertNotCurrentUser(UserEntity user, String message) {
+
+        String currentUsername = TenantContext.getUsername();
+
+        if (currentUsername != null && currentUsername.equals(user.getUsername())) {
+
+            throw new IllegalArgumentException(message);
 
         }
 

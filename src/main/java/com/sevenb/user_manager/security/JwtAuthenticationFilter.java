@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 @Component
@@ -38,14 +39,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
 
             JwtService.JwtClaims claims = jwtService.parseToken(token);
-            TenantContext.set(claims.tenantId(), claims.userId(), claims.ownerId(), claims.role(), claims.taxCondition());
+            TenantContext.set(claims.tenantId(), claims.userId(), claims.ownerId(), claims.username(),
+                    claims.role(), claims.taxCondition());
 
-            List<SimpleGrantedAuthority> authorities = claims.role() != null
-                    ? List.of(new SimpleGrantedAuthority("ROLE_" + claims.role()))
-                    : List.of();
+            List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+            if (claims.role() != null) {
+                authorities.add(new SimpleGrantedAuthority("ROLE_" + claims.role()));
+            }
+            if (claims.permissions() != null) {
+                claims.permissions().forEach(code -> authorities.add(new SimpleGrantedAuthority(code)));
+            }
 
             UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(claims.userId(), null, authorities);
+                    new UsernamePasswordAuthenticationToken(claims, null, authorities);
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
             filterChain.doFilter(request, response);
@@ -60,14 +66,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return true;
         }
         String path = request.getRequestURI();
-        if ("POST".equalsIgnoreCase(request.getMethod()) && "/api/register".equals(path)) {
-            return true;
-        }
-        if ("GET".equalsIgnoreCase(request.getMethod()) && "/api/permissions".equals(path)) {
-            return true;
-        }
-        return "GET".equalsIgnoreCase(request.getMethod())
-                && path.matches("/api/users/\\d+/resolved-permissions");
+        return "POST".equalsIgnoreCase(request.getMethod()) && "/api/register".equals(path);
     }
 
     private String extractBearerToken(HttpServletRequest request) {
