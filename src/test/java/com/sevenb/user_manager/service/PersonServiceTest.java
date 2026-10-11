@@ -31,7 +31,8 @@ class PersonServiceTest {
 
     private final PersonRepository personRepository = mock(PersonRepository.class);
     private final PermissionGuard permissionGuard = mock(PermissionGuard.class);
-    private final PersonService service = new PersonService(personRepository, permissionGuard);
+    private final BillingTrialService billingTrialService = mock(BillingTrialService.class);
+    private final PersonService service = new PersonService(personRepository, permissionGuard, billingTrialService);
 
     @BeforeEach
     void setUp() {
@@ -243,5 +244,34 @@ class PersonServiceTest {
         assertThat(created.getId()).isNull();
         assertThat(created.getTenantId()).isNotEqualTo("tenant-del-body");
         assertThat(UUID.fromString(created.getTenantId()).toString()).isEqualTo(created.getTenantId());
+    }
+
+    @Test
+    void platformAdminCreatePersonRequestsBillingTrial() {
+        platformAdmin(true);
+        when(personRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        Person created = service.createPersonAsPlatformAdmin(person(5L, "tenant-del-body"));
+
+        verify(billingTrialService).requestTrialAfterCommit(created, "USER_MANAGER_PLATFORM_ADMIN");
+    }
+
+    @Test
+    void failedPlatformAdminCreateNeverRequestsBillingTrial() {
+        platformAdmin(true);
+        when(personRepository.save(any())).thenThrow(new RuntimeException("unique"));
+
+        assertThatThrownBy(() -> service.createPersonAsPlatformAdmin(person(5L, TENANT)))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        verify(billingTrialService, never()).requestTrialAfterCommit(any(), any());
+    }
+
+    @Test
+    void nonPlatformAdminCreateNeverRequestsBillingTrial() {
+        platformAdmin(false);
+
+        assertThatThrownBy(() -> service.createPersonAsPlatformAdmin(person(5L, TENANT)))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(billingTrialService, never()).requestTrialAfterCommit(any(), any());
     }
 }
