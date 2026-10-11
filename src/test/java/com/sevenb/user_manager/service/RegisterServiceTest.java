@@ -7,6 +7,7 @@ import com.sevenb.user_manager.entity.UserEntity;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -66,6 +67,19 @@ class RegisterServiceTest {
         ArgumentCaptor<Person> person = ArgumentCaptor.forClass(Person.class);
         verify(personService).createPerson(person.capture());
         assertThat(person.getValue().getTenantId()).isNotBlank();
+    }
+
+    @Test
+    void registerIgnoresCreatedAtFromBody() {
+        when(personService.createPerson(any())).thenAnswer(inv -> inv.getArgument(0));
+        RegisterDTO dto = request(null);
+        dto.getPerson().setCreatedAt(LocalDateTime.of(2000, 1, 1, 0, 0));
+
+        service.register(dto);
+
+        ArgumentCaptor<Person> person = ArgumentCaptor.forClass(Person.class);
+        verify(personService).createPerson(person.capture());
+        assertThat(person.getValue().getCreatedAt()).isAfter(LocalDateTime.now().minusMinutes(1));
     }
 
     @Test

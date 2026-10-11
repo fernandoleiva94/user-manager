@@ -3,6 +3,7 @@ package com.sevenb.user_manager.service;
 import com.sevenb.user_manager.entity.PermissionEntity;
 import com.sevenb.user_manager.entity.RoleEntity;
 import com.sevenb.user_manager.repository.RoleRepository;
+import com.sevenb.user_manager.security.PermissionGuard;
 import com.sevenb.user_manager.security.TenantContext;
 import org.springframework.stereotype.Service;
 
@@ -23,12 +24,14 @@ public class RoleService {
     private final RoleRepository roleRepository;
     private final PermissionService permissionService;
     private final CurrentUserService currentUserService;
+    private final PermissionGuard permissionGuard;
 
     public RoleService(RoleRepository roleRepository, PermissionService permissionService,
-                       CurrentUserService currentUserService) {
+                       CurrentUserService currentUserService, PermissionGuard permissionGuard) {
         this.roleRepository = roleRepository;
         this.permissionService = permissionService;
         this.currentUserService = currentUserService;
+        this.permissionGuard = permissionGuard;
     }
 
     public RoleEntity createRole(RoleEntity role) {
@@ -69,7 +72,12 @@ public class RoleService {
     public Set<PermissionEntity> getPermissions(Long roleId) {
         RoleEntity role = roleRepository.findByIdAndTenantId(roleId, TenantContext.requireTenantId())
                 .orElseThrow(() -> new RuntimeException("Rol no encontrado: " + roleId));
-        return role.getPermissions();
+        if (permissionGuard.isPlatformAdmin()) {
+            return role.getPermissions();
+        }
+        return role.getPermissions().stream()
+                .filter(p -> !PermissionService.isPlatformCode(p.getCode()))
+                .collect(Collectors.toSet());
     }
 
     public RoleEntity setPermissions(Long roleId, Set<String> permissionCodes) {

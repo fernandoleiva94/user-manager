@@ -6,6 +6,7 @@ import com.sevenb.user_manager.entity.Person;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
@@ -28,6 +29,7 @@ public class RegisterService {
         userService.userValidation(register.getUser().getUsername());
         register.getPerson().setId(null);
         register.getPerson().setTenantId(UUID.randomUUID().toString());
+        register.getPerson().setCreatedAt(LocalDateTime.now());
         Person person = personService.createPerson(register.getPerson());
         roleService.seedDefaultRolesForTenant(person.getTenantId());
         register.getUser().setId(null);

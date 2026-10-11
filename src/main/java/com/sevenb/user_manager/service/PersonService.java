@@ -4,6 +4,7 @@ import com.sevenb.user_manager.dto.PersonResponseDto;
 import com.sevenb.user_manager.dto.RegisterDTO;
 import com.sevenb.user_manager.dto.UserResponseDto;
 import com.sevenb.user_manager.entity.Person;
+import com.sevenb.user_manager.exception.ConflictException;
 import com.sevenb.user_manager.exception.ResourceAlreadyExistsException;
 import com.sevenb.user_manager.mapper.UserMapper;
 import com.sevenb.user_manager.repository.PersonRepository;
@@ -15,6 +16,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -88,6 +90,7 @@ public class PersonService {
         }
         person.setId(null);
         person.setTenantId(UUID.randomUUID().toString());
+        person.setCreatedAt(LocalDateTime.now());
         return createPerson(person);
     }
 
@@ -113,7 +116,15 @@ public class PersonService {
         }
         Person person = personRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Persona no encontrada: " + id));
-        personRepository.delete(person);
+        if (person.getTenantId() != null && person.getTenantId().equals(TenantContext.getTenantId())) {
+            throw new ConflictException("No se puede eliminar la empresa de tu propio tenant");
+        }
+        try {
+            personRepository.delete(person);
+        } catch (DataIntegrityViolationException e) {
+            throw new ConflictException(
+                    "No se puede eliminar la empresa: tiene usuarios u otros datos asociados");
+        }
     }
 
     public void mailValiation(String email){

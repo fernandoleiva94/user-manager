@@ -36,6 +36,16 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void conflictIsJson409() {
+        ResponseEntity<Map<String, Object>> response =
+                handler.handleConflict(new ConflictException("No se puede eliminar la empresa"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody()).containsEntry("status", 409)
+                .containsEntry("message", "No se puede eliminar la empresa");
+    }
+
+    @Test
     void accessDeniedIsSpecJson403() {
         ResponseEntity<Map<String, Object>> response = handler.handleAccessDenied(new AccessDeniedException("x"));
 

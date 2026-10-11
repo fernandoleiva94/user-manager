@@ -1,14 +1,17 @@
 package com.sevenb.user_manager.service;
 
 import com.sevenb.user_manager.entity.Person;
+import com.sevenb.user_manager.exception.ConflictException;
 import com.sevenb.user_manager.repository.PersonRepository;
 import com.sevenb.user_manager.security.PermissionGuard;
 import com.sevenb.user_manager.security.TenantContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -16,6 +19,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -159,6 +163,43 @@ class PersonServiceTest {
         assertThatThrownBy(() -> service.deletePerson(1L)).isInstanceOf(AccessDeniedException.class);
         verify(personRepository, never()).delete(any());
         verify(personRepository, never()).deleteById(any());
+    }
+
+    @Test
+    void platformAdminCannotDeleteOwnTenantCompany() {
+        platformAdmin(true);
+        when(personRepository.findById(1L)).thenReturn(Optional.of(person(1L, TENANT)));
+
+        assertThatThrownBy(() -> service.deletePerson(1L))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("propio tenant");
+        verify(personRepository, never()).delete(any());
+    }
+
+    @Test
+    void deleteWithForeignKeyViolationIsConflict() {
+        platformAdmin(true);
+        Person other = person(2L, "tenant-2");
+        when(personRepository.findById(2L)).thenReturn(Optional.of(other));
+        doThrow(new DataIntegrityViolationException("violates foreign key constraint fk_users_person"))
+                .when(personRepository).delete(other);
+
+        assertThatThrownBy(() -> service.deletePerson(2L))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("usuarios u otros datos asociados")
+                .hasMessageNotContaining("foreign key");
+    }
+
+    @Test
+    void platformAdminCreatePersonIgnoresCreatedAtFromBody() {
+        platformAdmin(true);
+        when(personRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        Person body = person(5L, "tenant-del-body");
+        body.setCreatedAt(LocalDateTime.of(2000, 1, 1, 0, 0));
+
+        Person created = service.createPersonAsPlatformAdmin(body);
+
+        assertThat(created.getCreatedAt()).isAfter(LocalDateTime.now().minusMinutes(1));
     }
 
     @Test

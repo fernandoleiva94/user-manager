@@ -78,9 +78,15 @@ class PersonControllerSecurityTest {
     }
 
     @Test
-    void updateAllowedWithoutSettingsEditInShadowMode() throws Exception {
+    void updateDeniedWithoutSettingsEditEvenInShadowMode() throws Exception {
         authenticate("CAJERO", List.of("SALES_CREATE"));
-        assertThat(allows(shadow, update())).isTrue();
+        assertThat(allows(shadow, update())).isFalse();
+    }
+
+    @Test
+    void updateDeniedForLegacyToken() throws Exception {
+        authenticate("CAJERO", null);
+        assertThat(allows(shadow, update())).isFalse();
     }
 
     @Test

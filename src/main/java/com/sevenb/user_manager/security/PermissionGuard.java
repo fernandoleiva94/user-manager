@@ -23,6 +23,7 @@ public class PermissionGuard {
     private static final Logger log = LoggerFactory.getLogger(PermissionGuard.class);
     private static final String ADMIN_ROLE = "ADMIN";
     public static final String PLATFORM_ADMIN = "PLATFORM_ADMIN";
+    private static final String PLATFORM_PREFIX = "PLATFORM_";
 
     private final boolean enforce;
     private final UserRepository userRepository;
@@ -69,7 +70,39 @@ public class PermissionGuard {
         return granted != null && granted.contains(PLATFORM_ADMIN);
     }
 
+    /**
+     * Como {@link #has(String)} pero sin modo sombra ni pase para tokens legacy.
+     * Mantiene el bypass del rol ADMIN del tenant (salvo para códigos {@code PLATFORM_*}).
+     */
+    public boolean hasStrict(String code) {
+        if (isPlatformCode(code)) {
+            return isPlatformAdmin();
+        }
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof JwtService.JwtClaims claims)) {
+            return false;
+        }
+        if (ADMIN_ROLE.equalsIgnoreCase(claims.role())) {
+            return true;
+        }
+        List<String> granted = claims.permissions();
+        return granted != null && granted.contains(code);
+    }
+
+    /**
+     * Los códigos {@code PLATFORM_*} nunca se conceden por bypass de ADMIN, token legacy ni modo
+     * sombra: para ellos decide {@link #isPlatformAdmin()}.
+     */
     public boolean hasAny(String... codes) {
+        List<String> platformCodes = Arrays.stream(codes).filter(PermissionGuard::isPlatformCode).toList();
+        if (!platformCodes.isEmpty() && isPlatformAdmin()) {
+            return true;
+        }
+        List<String> required = Arrays.stream(codes).filter(code -> !isPlatformCode(code)).toList();
+        if (required.isEmpty()) {
+            return false;
+        }
+
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof JwtService.JwtClaims claims)) {
             return false;
@@ -79,7 +112,6 @@ public class PermissionGuard {
             return true;
         }
 
-        List<String> required = Arrays.asList(codes);
         List<String> granted = claims.permissions();
         if (granted == null) {
             log.warn("Token sin claim 'permissions' (legacy): se permite. usuario={} tenant={} permiso requerido={}",
@@ -97,5 +129,9 @@ public class PermissionGuard {
         log.warn("[MODO SOMBRA] Permiso faltante, se permite. usuario={} tenant={} permiso requerido={}",
                 claims.username(), claims.tenantId(), required);
         return true;
+    }
+
+    private static boolean isPlatformCode(String code) {
+        return code != null && code.startsWith(PLATFORM_PREFIX);
     }
 }

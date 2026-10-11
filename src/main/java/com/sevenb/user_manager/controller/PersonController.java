@@ -43,7 +43,7 @@ public class PersonController {
 
 
     @PutMapping("/{id}")
-    @PreAuthorize("@perm.isPlatformAdmin() or @perm.has('SETTINGS_EDIT')")
+    @PreAuthorize("@perm.isPlatformAdmin() or @perm.hasStrict('SETTINGS_EDIT')")
     public ResponseEntity<PersonResponseDto> updatePerson(@PathVariable Long id, @RequestBody Person person) {
         try {
             PersonResponseDto updatedPerson = personService.updatePerson(id, person);
