@@ -5,6 +5,7 @@ import com.sevenb.user_manager.entity.UserEntity;
 import com.sevenb.user_manager.entity.UserPermissionOverride;
 import com.sevenb.user_manager.repository.UserPermissionOverrideRepository;
 import com.sevenb.user_manager.repository.UserRepository;
+import com.sevenb.user_manager.security.TenantContext;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -26,7 +27,7 @@ public class PermissionResolutionService {
     }
 
     public List<String> resolvePermissions(Long userId) {
-        UserEntity user = userRepository.findById(userId)
+        UserEntity user = userRepository.findByIdAndPerson_TenantId(userId, TenantContext.requireTenantId())
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + userId));
 
         Set<String> perms = new HashSet<>();

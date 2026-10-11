@@ -7,6 +7,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -17,7 +18,7 @@ public class PermissionService implements ApplicationRunner {
 
     public static final List<String[]> CATALOG = Arrays.asList(
             new String[]{"DASHBOARD_VIEW",      "Ver dashboard"},
-            new String[]{"SALES_VIEW",           "Ver ventas propias"},
+            new String[]{"SALES_VIEW",           "Ver ventas"},
             new String[]{"SALES_VIEW_ALL",       "Ver todas las ventas"},
             new String[]{"SALES_CREATE",         "Crear ventas"},
             new String[]{"PRODUCTS_VIEW",        "Ver productos"},
@@ -32,7 +33,20 @@ public class PermissionService implements ApplicationRunner {
             new String[]{"TERMINALS_MANAGE",     "Gestionar terminales"},
             new String[]{"REPORTS_VIEW",         "Ver reportes"},
             new String[]{"CASH_SESSIONS_MANAGE", "Gestionar sesiones de caja"},
-            new String[]{"SETTINGS_EDIT",        "Editar configuración"}
+            new String[]{"SETTINGS_EDIT",        "Editar configuración"},
+            new String[]{"SALES_DISCOUNT",           "Aplicar descuentos en ventas"},
+            new String[]{"SALES_EXPORT",             "Exportar ventas"},
+            new String[]{"SALES_AFIP_RETRY",         "Reintentar autorización ARCA"},
+            new String[]{"CASH_HISTORY_VIEW",        "Ver historial de cajas"},
+            new String[]{"STOCK_VIEW",               "Ver stock y remitos"},
+            new String[]{"STOCK_ADJUST",             "Ajustar stock y gestionar remitos"},
+            new String[]{"CLIENTS_ACCOUNT_MANAGE",   "Registrar cobros y ajustes en cuenta corriente de clientes"},
+            new String[]{"SUPPLIERS_ACCOUNT_MANAGE", "Registrar pagos, cargos y ajustes en cuenta corriente de proveedores"},
+            new String[]{"PURCHASES_VIEW",           "Ver compras"},
+            new String[]{"PURCHASES_EDIT",           "Crear, editar y anular compras"},
+            new String[]{"PURCHASES_CONFIRM",        "Confirmar compras y aplicar stock"},
+            new String[]{"USERS_MANAGE",             "Gestionar usuarios"},
+            new String[]{"ROLES_MANAGE",             "Gestionar roles y permisos"}
     );
 
     public static final List<String> ALL_CODES = CATALOG.stream()
@@ -63,5 +77,29 @@ public class PermissionService implements ApplicationRunner {
 
     public Set<PermissionEntity> findByCodes(Set<String> codes) {
         return new HashSet<>(permissionRepository.findAllById(codes));
+    }
+
+    /**
+     * Devuelve las entidades de los códigos pedidos o lanza IllegalArgumentException (400)
+     * si alguno no existe en la tabla permissions.
+     */
+    public Set<PermissionEntity> requireExistingCodes(Collection<String> codes) {
+        if (codes == null) {
+            throw new IllegalArgumentException("La lista de permisos es obligatoria");
+        }
+        if (codes.stream().anyMatch(code -> code == null || code.isBlank())) {
+            throw new IllegalArgumentException("Código de permiso vacío");
+        }
+        Set<String> requested = new HashSet<>(codes);
+        Set<PermissionEntity> found = new HashSet<>(permissionRepository.findAllById(requested));
+        Set<String> foundCodes = found.stream().map(PermissionEntity::getCode).collect(Collectors.toSet());
+        List<String> missing = requested.stream()
+                .filter(code -> !foundCodes.contains(code))
+                .sorted()
+                .toList();
+        if (!missing.isEmpty()) {
+            throw new IllegalArgumentException("Códigos de permiso inexistentes: " + String.join(", ", missing));
+        }
+        return found;
     }
 }

@@ -68,6 +68,8 @@ public class UserService {
 
     private final UserPermissionOverrideRepository overrideRepository;
 
+    private final PermissionService permissionService;
+
 
 
     @Autowired
@@ -76,7 +78,9 @@ public class UserService {
 
                        PasswordEncoder passwordEncoder, UserMapper userMapper,
 
-                       RoleService roleService, UserPermissionOverrideRepository overrideRepository) {
+                       RoleService roleService, UserPermissionOverrideRepository overrideRepository,
+
+                       PermissionService permissionService) {
 
         this.userRepository = userRepository;
 
@@ -89,6 +93,8 @@ public class UserService {
         this.roleService = roleService;
 
         this.overrideRepository = overrideRepository;
+
+        this.permissionService = permissionService;
 
     }
 
@@ -200,7 +206,15 @@ public class UserService {
 
         if (request.getRoleId() != null) {
 
-            user.setRole(roleService.getRoleForTenant(request.getRoleId(), tenantId));
+            RoleEntity newRole = roleService.getRoleForTenant(request.getRoleId(), tenantId);
+
+            if (user.getRole() == null || !newRole.getId().equals(user.getRole().getId())) {
+
+                assertNotCurrentUser(user, "No podés cambiar tu propio rol");
+
+            }
+
+            user.setRole(newRole);
 
         }
 
@@ -260,6 +274,12 @@ public class UserService {
 
         RoleEntity role = roleService.getRoleForTenant(roleId, TenantContext.requireTenantId());
 
+        if (user.getRole() == null || !role.getId().equals(user.getRole().getId())) {
+
+            assertNotCurrentUser(user, "No podés cambiar tu propio rol");
+
+        }
+
         user.setRole(role);
 
         return userMapper.userToUserDto(userRepository.save(user));
@@ -287,6 +307,20 @@ public class UserService {
     public void setOverrides(Long userId, UserPermissionOverrideRequest request) {
 
         UserEntity user = getUserForCurrentTenant(userId);
+
+        assertNotCurrentUser(user, "No podés modificar tus propios permisos");
+
+        if (request.getOverrides() == null) {
+
+            throw new IllegalArgumentException("La lista de overrides es obligatoria");
+
+        }
+
+        permissionService.requireExistingCodes(request.getOverrides().stream()
+
+                .map(UserPermissionOverrideRequest.OverrideEntry::getPermissionCode)
+
+                .toList());
 
 
 
@@ -317,6 +351,20 @@ public class UserService {
                 overrideRepository.save(override);
 
             }
+
+        }
+
+    }
+
+
+
+    private void assertNotCurrentUser(UserEntity user, String message) {
+
+        String currentUsername = TenantContext.getUsername();
+
+        if (currentUsername != null && currentUsername.equals(user.getUsername())) {
+
+            throw new IllegalArgumentException(message);
 
         }
 

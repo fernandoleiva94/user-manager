@@ -3,6 +3,7 @@ package com.sevenb.user_manager.controller;
 import com.sevenb.user_manager.entity.PermissionEntity;
 import com.sevenb.user_manager.service.PermissionService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -20,6 +21,7 @@ public class PermissionController {
     }
 
     @GetMapping
+    @PreAuthorize("@perm.hasAny('USERS_MANAGE','ROLES_MANAGE')")
     public ResponseEntity<List<PermissionEntity>> getAllPermissions() {
         return ResponseEntity.ok(permissionService.getAllPermissions());
     }
