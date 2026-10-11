@@ -21,10 +21,13 @@ public class RoleService {
 
     private final RoleRepository roleRepository;
     private final PermissionService permissionService;
+    private final CurrentUserService currentUserService;
 
-    public RoleService(RoleRepository roleRepository, PermissionService permissionService) {
+    public RoleService(RoleRepository roleRepository, PermissionService permissionService,
+                       CurrentUserService currentUserService) {
         this.roleRepository = roleRepository;
         this.permissionService = permissionService;
+        this.currentUserService = currentUserService;
     }
 
     public RoleEntity createRole(RoleEntity role) {
@@ -71,6 +74,12 @@ public class RoleService {
         RoleEntity role = roleRepository.findByIdAndTenantId(roleId, TenantContext.requireTenantId())
                 .orElseThrow(() -> new RuntimeException("Rol no encontrado: " + roleId));
         Set<PermissionEntity> permissions = permissionService.requireExistingCodes(permissionCodes);
+        currentUserService.currentUser()
+                .filter(current -> current.getRole() != null && role.getId().equals(current.getRole().getId()))
+                .filter(current -> !isAdminRole(current.getRole()))
+                .ifPresent(current -> {
+                    throw new IllegalArgumentException("No podés modificar los permisos de tu propio rol");
+                });
         if (isAdminRole(role)) {
             assertAdminKeepsPermissions(role, permissionCodes);
         }

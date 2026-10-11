@@ -1,5 +1,6 @@
 package com.sevenb.user_manager.security;
 
+import com.sevenb.user_manager.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,13 +24,34 @@ public class PermissionGuard {
     private static final String ADMIN_ROLE = "ADMIN";
 
     private final boolean enforce;
+    private final UserRepository userRepository;
 
-    public PermissionGuard(@Value("${centauro.security.permissions.enforce:false}") boolean enforce) {
+    public PermissionGuard(@Value("${centauro.security.permissions.enforce:false}") boolean enforce,
+                           UserRepository userRepository) {
         this.enforce = enforce;
+        this.userRepository = userRepository;
     }
 
     public boolean has(String code) {
         return hasAny(code);
+    }
+
+    /**
+     * Permite si {@code userId} es el propio usuario autenticado (mismo username y tenant);
+     * si no, aplica {@link #hasAny(String...)} con sus reglas de bypass, legacy y modo sombra.
+     */
+    public boolean isSelfOrHasAny(Long userId, String... codes) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof JwtService.JwtClaims claims
+                && userId != null && claims.username() != null) {
+            boolean self = userRepository.findByIdAndPerson_TenantId(userId, claims.tenantId())
+                    .map(user -> claims.username().equals(user.getUsername()))
+                    .orElse(false);
+            if (self) {
+                return true;
+            }
+        }
+        return hasAny(codes);
     }
 
     public boolean hasAny(String... codes) {

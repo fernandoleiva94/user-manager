@@ -5,14 +5,21 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import com.sevenb.user_manager.entity.UserEntity;
+import com.sevenb.user_manager.repository.UserRepository;
+
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class PermissionGuardTest {
 
-    private final PermissionGuard shadow = new PermissionGuard(false);
-    private final PermissionGuard enforcing = new PermissionGuard(true);
+    private final UserRepository userRepository = mock(UserRepository.class);
+    private final PermissionGuard shadow = new PermissionGuard(false, userRepository);
+    private final PermissionGuard enforcing = new PermissionGuard(true, userRepository);
 
     @AfterEach
     void clearContext() {
@@ -72,5 +79,47 @@ class PermissionGuardTest {
     @Test
     void noAuthenticationIsDenied() {
         assertThat(shadow.has("USERS_MANAGE")).isFalse();
+    }
+
+    private void storedUser(long id, String username) {
+        UserEntity user = new UserEntity();
+        user.setId(id);
+        user.setUsername(username);
+        when(userRepository.findByIdAndPerson_TenantId(id, "tenant-1")).thenReturn(Optional.of(user));
+    }
+
+    @Test
+    void selfCanReadOwnResolvedPermissionsWithoutPermission() {
+        authenticate("CAJERO", List.of());
+        storedUser(7L, "juan");
+        assertThat(enforcing.isSelfOrHasAny(7L, "USERS_MANAGE", "ROLES_MANAGE")).isTrue();
+    }
+
+    @Test
+    void otherUserRequiresPermissionWhenEnforcing() {
+        authenticate("CAJERO", List.of());
+        storedUser(8L, "pedro");
+        assertThat(enforcing.isSelfOrHasAny(8L, "USERS_MANAGE", "ROLES_MANAGE")).isFalse();
+    }
+
+    @Test
+    void otherUserAllowedWithPermission() {
+        authenticate("SUPERVISOR", List.of("ROLES_MANAGE"));
+        storedUser(8L, "pedro");
+        assertThat(enforcing.isSelfOrHasAny(8L, "USERS_MANAGE", "ROLES_MANAGE")).isTrue();
+    }
+
+    @Test
+    void otherUserAllowedInShadowMode() {
+        authenticate("CAJERO", List.of());
+        storedUser(8L, "pedro");
+        assertThat(shadow.isSelfOrHasAny(8L, "USERS_MANAGE", "ROLES_MANAGE")).isTrue();
+    }
+
+    @Test
+    void userOfAnotherTenantIsNotSelf() {
+        authenticate("CAJERO", List.of());
+        when(userRepository.findByIdAndPerson_TenantId(9L, "tenant-1")).thenReturn(Optional.empty());
+        assertThat(enforcing.isSelfOrHasAny(9L, "USERS_MANAGE")).isFalse();
     }
 }

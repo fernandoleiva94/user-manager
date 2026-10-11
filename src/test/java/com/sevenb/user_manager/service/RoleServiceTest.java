@@ -2,6 +2,7 @@ package com.sevenb.user_manager.service;
 
 import com.sevenb.user_manager.entity.PermissionEntity;
 import com.sevenb.user_manager.entity.RoleEntity;
+import com.sevenb.user_manager.entity.UserEntity;
 import com.sevenb.user_manager.repository.RoleRepository;
 import com.sevenb.user_manager.security.TenantContext;
 import org.junit.jupiter.api.AfterEach;
@@ -26,7 +27,8 @@ class RoleServiceTest {
 
     private final RoleRepository roleRepository = mock(RoleRepository.class);
     private final PermissionService permissionService = mock(PermissionService.class);
-    private final RoleService service = new RoleService(roleRepository, permissionService);
+    private final CurrentUserService currentUserService = mock(CurrentUserService.class);
+    private final RoleService service = new RoleService(roleRepository, permissionService, currentUserService);
 
     @BeforeEach
     void setUp() {
@@ -120,6 +122,49 @@ class RoleServiceTest {
         assertThatThrownBy(() -> service.setPermissions(2L, Set.of("NOPE")))
                 .isInstanceOf(IllegalArgumentException.class);
         verify(roleRepository, never()).save(any());
+    }
+
+    private void currentUserWithRole(RoleEntity role) {
+        UserEntity current = new UserEntity();
+        current.setUsername("juan");
+        current.setRole(role);
+        when(currentUserService.currentUser()).thenReturn(Optional.of(current));
+    }
+
+    @Test
+    void nonAdminCannotChangeOwnRolePermissions() {
+        RoleEntity supervisor = role(3L, "SUPERVISOR", "SALES_VIEW");
+        currentUserWithRole(supervisor);
+        stubExistingCodes();
+
+        assertThatThrownBy(() -> service.setPermissions(3L, Set.of("SALES_VIEW", "USERS_MANAGE")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("tu propio rol");
+        verify(roleRepository, never()).save(any());
+    }
+
+    @Test
+    void nonAdminCanChangeOtherRolePermissions() {
+        currentUserWithRole(new RoleEntity(3L, TENANT, "SUPERVISOR", null, permissions()));
+        RoleEntity cajero = role(2L, "CAJERO", "SALES_VIEW");
+        stubExistingCodes();
+        when(roleRepository.save(cajero)).thenReturn(cajero);
+
+        service.setPermissions(2L, Set.of("SALES_VIEW", "SALES_CREATE"));
+
+        verify(roleRepository).save(cajero);
+    }
+
+    @Test
+    void adminCanChangeOwnRolePermissions() {
+        RoleEntity admin = role(1L, "ADMIN", "USERS_MANAGE", "ROLES_MANAGE");
+        currentUserWithRole(admin);
+        stubExistingCodes();
+        when(roleRepository.save(admin)).thenReturn(admin);
+
+        service.setPermissions(1L, Set.of("USERS_MANAGE", "ROLES_MANAGE", "STOCK_VIEW"));
+
+        verify(roleRepository).save(admin);
     }
 
     @Test

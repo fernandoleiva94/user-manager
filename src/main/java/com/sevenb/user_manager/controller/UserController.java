@@ -98,6 +98,7 @@ public class UserController {
     }
 
     @GetMapping("/{userId}/resolved-permissions")
+    @PreAuthorize("@perm.isSelfOrHasAny(#userId, 'USERS_MANAGE', 'ROLES_MANAGE')")
     public ResponseEntity<ResolvedPermissionsDto> getResolvedPermissions(@PathVariable Long userId) {
         ResolvedPermissionsDto dto = new ResolvedPermissionsDto();
         dto.setPerms(permissionResolutionService.resolvePermissions(userId));
