@@ -2,6 +2,7 @@ package com.sevenb.user_manager.service;
 
 import com.sevenb.user_manager.entity.PermissionEntity;
 import com.sevenb.user_manager.repository.PermissionRepository;
+import com.sevenb.user_manager.security.PermissionGuard;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -17,7 +18,8 @@ import static org.mockito.Mockito.when;
 class PermissionServiceTest {
 
     private final PermissionRepository repository = mock(PermissionRepository.class);
-    private final PermissionService service = new PermissionService(repository);
+    private final PermissionGuard permissionGuard = mock(PermissionGuard.class);
+    private final PermissionService service = new PermissionService(repository, permissionGuard);
 
     private static PermissionEntity permission(String code) {
         PermissionEntity p = new PermissionEntity();
@@ -53,6 +55,30 @@ class PermissionServiceTest {
         assertThatThrownBy(() -> service.requireExistingCodes(List.of("SALES_VIEW", "NOPE")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("NOPE");
+    }
+
+    @Test
+    void catalogContainsPlatformAdmin() {
+        assertThat(PermissionService.ALL_CODES).contains("PLATFORM_ADMIN");
+        assertThat(PermissionService.isPlatformCode("PLATFORM_ADMIN")).isTrue();
+        assertThat(PermissionService.isPlatformCode("USERS_MANAGE")).isFalse();
+    }
+
+    @Test
+    void catalogHidesPlatformCodesFromNonPlatformAdmin() {
+        when(repository.findAll()).thenReturn(List.of(permission("SALES_VIEW"), permission("PLATFORM_ADMIN")));
+        when(permissionGuard.isPlatformAdmin()).thenReturn(false);
+
+        assertThat(service.getAllPermissions()).extracting(PermissionEntity::getCode).containsExactly("SALES_VIEW");
+    }
+
+    @Test
+    void catalogShowsPlatformCodesToPlatformAdmin() {
+        when(repository.findAll()).thenReturn(List.of(permission("SALES_VIEW"), permission("PLATFORM_ADMIN")));
+        when(permissionGuard.isPlatformAdmin()).thenReturn(true);
+
+        assertThat(service.getAllPermissions()).extracting(PermissionEntity::getCode)
+                .containsExactlyInAnyOrder("SALES_VIEW", "PLATFORM_ADMIN");
     }
 
     @Test

@@ -6,19 +6,18 @@ import com.sevenb.user_manager.entity.Person;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @Service
 public class RegisterService {
 
     private final PersonService personService;
     private final UserService userService;
-    private final SubscriptionService subscriptionService;
     private final RoleService roleService;
 
-    public RegisterService(PersonService personService, UserService userService,
-                           SubscriptionService subscriptionService, RoleService roleService) {
+    public RegisterService(PersonService personService, UserService userService, RoleService roleService) {
         this.personService = personService;
         this.userService = userService;
-        this.subscriptionService = subscriptionService;
         this.roleService = roleService;
     }
 
@@ -27,12 +26,13 @@ public class RegisterService {
         personService.mailValiation(register.getPerson().getEmail());
         personService.documentNumberValidate(register.getPerson().getDocumentNumber());
         userService.userValidation(register.getUser().getUsername());
+        register.getPerson().setId(null);
+        register.getPerson().setTenantId(UUID.randomUUID().toString());
         Person person = personService.createPerson(register.getPerson());
         roleService.seedDefaultRolesForTenant(person.getTenantId());
+        register.getUser().setId(null);
         register.getUser().setPerson(person);
         register.getUser().setRole(roleService.getRoleByNameForTenant("ADMIN", person.getTenantId()));
-        UserResponseDto userResponseDto = userService.createUserForRegister(register.getUser());
-        subscriptionService.subscribeFreePlan(person.getId());
-        return userResponseDto;
+        return userService.createUserForRegister(register.getUser());
     }
 }

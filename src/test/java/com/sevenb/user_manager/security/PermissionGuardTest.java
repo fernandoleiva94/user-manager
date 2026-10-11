@@ -81,6 +81,36 @@ class PermissionGuardTest {
         assertThat(shadow.has("USERS_MANAGE")).isFalse();
     }
 
+    @Test
+    void platformAdminRequiresPermissionsClaim() {
+        authenticate("ADMIN", List.of("USERS_MANAGE", "PLATFORM_ADMIN"));
+        assertThat(enforcing.isPlatformAdmin()).isTrue();
+        assertThat(shadow.isPlatformAdmin()).isTrue();
+    }
+
+    @Test
+    void adminRoleIsNotPlatformAdmin() {
+        authenticate("ADMIN", List.of("USERS_MANAGE", "ROLES_MANAGE"));
+        assertThat(enforcing.isPlatformAdmin()).isFalse();
+    }
+
+    @Test
+    void legacyTokenIsNotPlatformAdmin() {
+        authenticate("ADMIN", null);
+        assertThat(enforcing.isPlatformAdmin()).isFalse();
+    }
+
+    @Test
+    void shadowModeDoesNotGrantPlatformAdmin() {
+        authenticate("CAJERO", List.of("SALES_CREATE"));
+        assertThat(shadow.isPlatformAdmin()).isFalse();
+    }
+
+    @Test
+    void noAuthenticationIsNotPlatformAdmin() {
+        assertThat(shadow.isPlatformAdmin()).isFalse();
+    }
+
     private void storedUser(long id, String username) {
         UserEntity user = new UserEntity();
         user.setId(id);

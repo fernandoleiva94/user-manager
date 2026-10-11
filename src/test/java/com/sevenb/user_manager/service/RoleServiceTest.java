@@ -8,6 +8,7 @@ import com.sevenb.user_manager.security.TenantContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.util.HashSet;
 import java.util.Optional;
@@ -18,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -165,6 +167,66 @@ class RoleServiceTest {
         service.setPermissions(1L, Set.of("USERS_MANAGE", "ROLES_MANAGE", "STOCK_VIEW"));
 
         verify(roleRepository).save(admin);
+    }
+
+    @Test
+    void setPermissionsRejectsPlatformCodes() {
+        role(2L, "CAJERO");
+        stubExistingCodes();
+
+        assertThatThrownBy(() -> service.setPermissions(2L, Set.of("SALES_VIEW", "PLATFORM_ADMIN")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("PLATFORM_ADMIN");
+        verify(roleRepository, never()).save(any());
+    }
+
+    @Test
+    void setPermissionsRejectsPlatformCodesOnAdminRole() {
+        role(1L, "ADMIN", "USERS_MANAGE", "ROLES_MANAGE");
+        stubExistingCodes();
+
+        assertThatThrownBy(() -> service.setPermissions(1L, Set.of("USERS_MANAGE", "ROLES_MANAGE", "PLATFORM_ADMIN")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("PLATFORM_ADMIN");
+        verify(roleRepository, never()).save(any());
+    }
+
+    @Test
+    void adminRoleCanDropPlatformCodesFromBackfill() {
+        RoleEntity admin = role(1L, "ADMIN", "USERS_MANAGE", "ROLES_MANAGE", "PLATFORM_ADMIN");
+        stubExistingCodes();
+        when(roleRepository.save(admin)).thenReturn(admin);
+
+        service.setPermissions(1L, Set.of("USERS_MANAGE", "ROLES_MANAGE"));
+
+        verify(roleRepository).save(admin);
+        assertThat(admin.getPermissions()).extracting(PermissionEntity::getCode).doesNotContain("PLATFORM_ADMIN");
+    }
+
+    @Test
+    void createRoleRejectsPlatformCodes() {
+        RoleEntity role = new RoleEntity(null, null, "VENDEDOR", null, permissions("SALES_VIEW", "PLATFORM_ADMIN"));
+        stubExistingCodes();
+
+        assertThatThrownBy(() -> service.createRole(role))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("PLATFORM_ADMIN");
+        verify(roleRepository, never()).save(any());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void seedDefaultRolesExcludesPlatformCodes() {
+        when(roleRepository.existsByTenantId(TENANT)).thenReturn(false);
+        when(permissionService.findByCodes(any())).thenReturn(permissions());
+
+        service.seedDefaultRolesForTenant(TENANT);
+
+        ArgumentCaptor<Set<String>> codes = ArgumentCaptor.forClass(Set.class);
+        verify(permissionService, times(3)).findByCodes(codes.capture());
+        assertThat(codes.getAllValues()).allSatisfy(set ->
+                assertThat(set).noneMatch(code -> code.startsWith("PLATFORM_")));
+        assertThat(codes.getAllValues().get(0)).contains("USERS_MANAGE", "ROLES_MANAGE");
     }
 
     @Test

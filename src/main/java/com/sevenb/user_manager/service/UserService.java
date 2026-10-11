@@ -32,6 +32,8 @@ import com.sevenb.user_manager.repository.UserPermissionOverrideRepository;
 
 import com.sevenb.user_manager.repository.UserRepository;
 
+import com.sevenb.user_manager.security.PermissionGuard;
+
 import com.sevenb.user_manager.security.TenantContext;
 
 import jakarta.transaction.Transactional;
@@ -72,6 +74,8 @@ public class UserService {
 
     private final CurrentUserService currentUserService;
 
+    private final PermissionGuard permissionGuard;
+
 
 
     @Autowired
@@ -82,7 +86,9 @@ public class UserService {
 
                        RoleService roleService, UserPermissionOverrideRepository overrideRepository,
 
-                       PermissionService permissionService, CurrentUserService currentUserService) {
+                       PermissionService permissionService, CurrentUserService currentUserService,
+
+                       PermissionGuard permissionGuard) {
 
         this.userRepository = userRepository;
 
@@ -99,6 +105,8 @@ public class UserService {
         this.permissionService = permissionService;
 
         this.currentUserService = currentUserService;
+
+        this.permissionGuard = permissionGuard;
 
     }
 
@@ -340,11 +348,21 @@ public class UserService {
 
         }
 
-        permissionService.requireExistingCodes(request.getOverrides().stream()
+        List<String> codes = request.getOverrides().stream()
 
                 .map(UserPermissionOverrideRequest.OverrideEntry::getPermissionCode)
 
-                .toList());
+                .toList();
+
+        if (!permissionGuard.isPlatformAdmin()) {
+
+            PermissionService.rejectPlatformCodes(codes,
+
+                    "Solo un administrador de la plataforma puede asignar permisos de plataforma");
+
+        }
+
+        permissionService.requireExistingCodes(codes);
 
 
 

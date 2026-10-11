@@ -22,6 +22,7 @@ public class PermissionGuard {
 
     private static final Logger log = LoggerFactory.getLogger(PermissionGuard.class);
     private static final String ADMIN_ROLE = "ADMIN";
+    public static final String PLATFORM_ADMIN = "PLATFORM_ADMIN";
 
     private final boolean enforce;
     private final UserRepository userRepository;
@@ -52,6 +53,20 @@ public class PermissionGuard {
             }
         }
         return hasAny(codes);
+    }
+
+    /**
+     * Administrador de la plataforma Centauro: el claim {@code permissions} contiene
+     * {@code PLATFORM_ADMIN}. Chequeo estricto: sin bypass de ADMIN, sin pase para tokens legacy
+     * y sin modo sombra.
+     */
+    public boolean isPlatformAdmin() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof JwtService.JwtClaims claims)) {
+            return false;
+        }
+        List<String> granted = claims.permissions();
+        return granted != null && granted.contains(PLATFORM_ADMIN);
     }
 
     public boolean hasAny(String... codes) {

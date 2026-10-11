@@ -9,4 +9,5 @@ public interface PersonRepository extends JpaRepository<Person, Long> {
     boolean existsByEmail(String email);
     boolean existsByDocumentNumber(String email);
     Optional<Person> findByIdAndTenantId(Long id, String tenantId);
+    Optional<Person> findByTenantId(String tenantId);
 }

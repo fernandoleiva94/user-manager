@@ -7,6 +7,7 @@ import com.sevenb.user_manager.dto.UserResponseDto;
 import com.sevenb.user_manager.entity.Person;
 import com.sevenb.user_manager.service.PersonService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -33,8 +34,9 @@ public class PersonController {
     }
 
     @PostMapping
+    @PreAuthorize("@perm.isPlatformAdmin()")
     public Person createPerson(@RequestBody Person person) {
-        return personService.createPerson(person);
+        return personService.createPersonAsPlatformAdmin(person);
     }
 
 

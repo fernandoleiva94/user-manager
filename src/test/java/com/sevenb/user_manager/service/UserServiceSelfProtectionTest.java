@@ -10,6 +10,7 @@ import com.sevenb.user_manager.mapper.UserMapper;
 import com.sevenb.user_manager.repository.PersonRepository;
 import com.sevenb.user_manager.repository.UserPermissionOverrideRepository;
 import com.sevenb.user_manager.repository.UserRepository;
+import com.sevenb.user_manager.security.PermissionGuard;
 import com.sevenb.user_manager.security.TenantContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,9 +37,10 @@ class UserServiceSelfProtectionTest {
     private final UserPermissionOverrideRepository overrideRepository = mock(UserPermissionOverrideRepository.class);
     private final PermissionService permissionService = mock(PermissionService.class);
     private final CurrentUserService currentUserService = mock(CurrentUserService.class);
+    private final PermissionGuard permissionGuard = mock(PermissionGuard.class);
     private final UserService service = new UserService(userRepository, personRepository,
             mock(PasswordEncoder.class), mock(UserMapper.class), roleService, overrideRepository, permissionService,
-            currentUserService);
+            currentUserService, permissionGuard);
 
     @BeforeEach
     void setUp() {
@@ -122,6 +124,37 @@ class UserServiceSelfProtectionTest {
         assertThatThrownBy(() -> service.setOverrides(11L, overrides("NOPE")))
                 .isInstanceOf(IllegalArgumentException.class);
         verify(overrideRepository, never()).save(any());
+    }
+
+    @Test
+    void nonPlatformAdminCannotGrantPlatformOverride() {
+        user(11L, "pedro", null);
+        when(permissionGuard.isPlatformAdmin()).thenReturn(false);
+
+        assertThatThrownBy(() -> service.setOverrides(11L, overrides("PLATFORM_ADMIN")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("PLATFORM_ADMIN");
+        verify(overrideRepository, never()).save(any());
+    }
+
+    @Test
+    void platformAdminCanGrantPlatformOverride() {
+        user(11L, "pedro", null);
+        when(permissionGuard.isPlatformAdmin()).thenReturn(true);
+
+        service.setOverrides(11L, overrides("PLATFORM_ADMIN"));
+
+        verify(overrideRepository).save(any());
+    }
+
+    @Test
+    void nonPlatformAdminCanStillGrantRegularOverride() {
+        user(11L, "pedro", null);
+        when(permissionGuard.isPlatformAdmin()).thenReturn(false);
+
+        service.setOverrides(11L, overrides("SALES_VIEW"));
+
+        verify(overrideRepository).save(any());
     }
 
     @Test

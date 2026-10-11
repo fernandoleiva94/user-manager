@@ -18,6 +18,7 @@ public class RoleService {
 
     public static final String ADMIN_ROLE = "ADMIN";
     private static final List<String> ADMIN_REQUIRED_CODES = List.of("USERS_MANAGE", "ROLES_MANAGE");
+    private static final String PLATFORM_CODES_MESSAGE = "Los permisos de plataforma no se asignan por rol";
 
     private final RoleRepository roleRepository;
     private final PermissionService permissionService;
@@ -42,6 +43,7 @@ public class RoleService {
             Set<String> codes = role.getPermissions().stream()
                     .map(PermissionEntity::getCode)
                     .collect(Collectors.toSet());
+            PermissionService.rejectPlatformCodes(codes, PLATFORM_CODES_MESSAGE);
             role.setPermissions(permissionService.requireExistingCodes(codes));
         }
         return roleRepository.save(role);
@@ -73,6 +75,7 @@ public class RoleService {
     public RoleEntity setPermissions(Long roleId, Set<String> permissionCodes) {
         RoleEntity role = roleRepository.findByIdAndTenantId(roleId, TenantContext.requireTenantId())
                 .orElseThrow(() -> new RuntimeException("Rol no encontrado: " + roleId));
+        PermissionService.rejectPlatformCodes(permissionCodes, PLATFORM_CODES_MESSAGE);
         Set<PermissionEntity> permissions = permissionService.requireExistingCodes(permissionCodes);
         currentUserService.currentUser()
                 .filter(current -> current.getRole() != null && role.getId().equals(current.getRole().getId()))
@@ -94,6 +97,7 @@ public class RoleService {
     private void assertAdminKeepsPermissions(RoleEntity adminRole, Set<String> newCodes) {
         Set<String> removed = adminRole.getPermissions().stream()
                 .map(PermissionEntity::getCode)
+                .filter(code -> !PermissionService.isPlatformCode(code))
                 .filter(code -> !newCodes.contains(code))
                 .collect(Collectors.toCollection(TreeSet::new));
         for (String required : ADMIN_REQUIRED_CODES) {
@@ -121,6 +125,7 @@ public class RoleService {
         if (roleRepository.existsByTenantId(tenantId)) return;
 
         Set<String> allCodes = new HashSet<>(PermissionService.ALL_CODES);
+        allCodes.removeIf(PermissionService::isPlatformCode);
 
         Set<String> supervisorCodes = new HashSet<>(allCodes);
         supervisorCodes.removeAll(Set.of("SETTINGS_EDIT", "TERMINALS_MANAGE", "BRANCHES_MANAGE",
