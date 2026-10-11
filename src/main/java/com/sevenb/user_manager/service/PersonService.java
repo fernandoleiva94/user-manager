@@ -4,35 +4,58 @@ import com.sevenb.user_manager.dto.PersonResponseDto;
 import com.sevenb.user_manager.dto.RegisterDTO;
 import com.sevenb.user_manager.dto.UserResponseDto;
 import com.sevenb.user_manager.entity.Person;
+import com.sevenb.user_manager.exception.ConflictException;
 import com.sevenb.user_manager.exception.ResourceAlreadyExistsException;
 import com.sevenb.user_manager.mapper.UserMapper;
 import com.sevenb.user_manager.repository.PersonRepository;
 import com.sevenb.user_manager.repository.UserRepository;
+import com.sevenb.user_manager.security.PermissionGuard;
+import com.sevenb.user_manager.security.TenantContext;
 import jakarta.transaction.Transactional;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class PersonService {
 
     private final PersonRepository personRepository;
-    public PersonService(PersonRepository personRepository) {
-        this.personRepository = personRepository;
+    private final PermissionGuard permissionGuard;
 
+    public PersonService(PersonRepository personRepository, PermissionGuard permissionGuard) {
+        this.personRepository = personRepository;
+        this.permissionGuard = permissionGuard;
     }
 
 
+    /** Platform admin: todas las empresas. Resto: solo la empresa de su tenant (0 o 1). */
     public List<Person> getAllPeople() {
-        return personRepository.findAll();
+        if (permissionGuard.isPlatformAdmin()) {
+            return personRepository.findAll();
+        }
+        return personRepository.findByTenantId(TenantContext.requireTenantId())
+                .map(List::of)
+                .orElseGet(List::of);
     }
 
     public PersonResponseDto getPersonById(Long id) {
-        Person person = personRepository.findById(id).orElseThrow(()-> new RuntimeException("Recipe not found"));;
-        return toPersonDto(person);
+        return toPersonDto(getAccessiblePerson(id));
+    }
 
+    /**
+     * Platform admin accede a cualquier empresa; el resto solo a la de su tenant.
+     * Fuera de alcance responde "no encontrada" (404) para no revelar que existe.
+     */
+    private Person getAccessiblePerson(Long id) {
+        Optional<Person> person = permissionGuard.isPlatformAdmin()
+                ? personRepository.findById(id)
+                : personRepository.findByIdAndTenantId(id, TenantContext.requireTenantId());
+        return person.orElseThrow(() -> new RuntimeException("Persona no encontrada: " + id));
     }
 
     private PersonResponseDto toPersonDto ( Person person){
@@ -60,25 +83,48 @@ public class PersonService {
         }
     }
 
+    /** Alta directa de empresa: solo platform admin. El tenantId lo genera el servidor. */
+    public Person createPersonAsPlatformAdmin(Person person) {
+        if (!permissionGuard.isPlatformAdmin()) {
+            throw new AccessDeniedException("Solo un administrador de la plataforma puede crear empresas");
+        }
+        person.setId(null);
+        person.setTenantId(UUID.randomUUID().toString());
+        person.setCreatedAt(LocalDateTime.now());
+        return createPerson(person);
+    }
+
 
 
     public PersonResponseDto updatePerson(Long id, Person updatedPerson) {
-        return personRepository.findById(id).map(person -> {
-            person.setFirstName(updatedPerson.getFirstName());
-            person.setLastName(updatedPerson.getLastName());
-            person.setDocumentType(updatedPerson.getDocumentType());
-            person.setDocumentNumber(updatedPerson.getDocumentNumber());
-            person.setEmail(updatedPerson.getEmail());
-            person.setPhone(updatedPerson.getPhone());
-            person.setAddress(updatedPerson.getAddress());
-            person.setTaxCondition(updatedPerson.getTaxCondition());
-            person.setTenantId(updatedPerson.getTenantId());
-            return toPersonDto(personRepository.save(person));
-        }).orElseThrow(() -> new RuntimeException("Person not found"));
+        Person person = getAccessiblePerson(id);
+        person.setFirstName(updatedPerson.getFirstName());
+        person.setLastName(updatedPerson.getLastName());
+        person.setDocumentType(updatedPerson.getDocumentType());
+        person.setDocumentNumber(updatedPerson.getDocumentNumber());
+        person.setEmail(updatedPerson.getEmail());
+        person.setPhone(updatedPerson.getPhone());
+        person.setAddress(updatedPerson.getAddress());
+        person.setTaxCondition(updatedPerson.getTaxCondition());
+        return toPersonDto(personRepository.save(person));
     }
 
+    /** Baja de empresa: solo platform admin, incluso para la empresa del propio tenant. */
     public void deletePerson(Long id) {
-        personRepository.deleteById(id);
+        if (!permissionGuard.isPlatformAdmin()) {
+            throw new AccessDeniedException("Solo un administrador de la plataforma puede eliminar empresas");
+        }
+        Person person = personRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Persona no encontrada: " + id));
+        if (person.getTenantId() != null && person.getTenantId().equals(TenantContext.getTenantId())) {
+            throw new ConflictException("No se puede eliminar la empresa de tu propio tenant");
+        }
+        try {
+            personRepository.delete(person);
+        } catch (DataIntegrityViolationException e) {
+            throw new ConflictException(
+                    "No se puede eliminar la empresa: tiene usuarios u otros datos asociados");
+        }
     }
 
     public void mailValiation(String email){

@@ -7,6 +7,7 @@ import com.sevenb.user_manager.dto.UserResponseDto;
 import com.sevenb.user_manager.entity.Person;
 import com.sevenb.user_manager.service.PersonService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -33,14 +34,16 @@ public class PersonController {
     }
 
     @PostMapping
+    @PreAuthorize("@perm.isPlatformAdmin()")
     public Person createPerson(@RequestBody Person person) {
-        return personService.createPerson(person);
+        return personService.createPersonAsPlatformAdmin(person);
     }
 
 
 
 
     @PutMapping("/{id}")
+    @PreAuthorize("@perm.isPlatformAdmin() or @perm.hasStrict('SETTINGS_EDIT')")
     public ResponseEntity<PersonResponseDto> updatePerson(@PathVariable Long id, @RequestBody Person person) {
         try {
             PersonResponseDto updatedPerson = personService.updatePerson(id, person);
@@ -51,6 +54,7 @@ public class PersonController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("@perm.isPlatformAdmin()")
     public ResponseEntity<Void> deletePerson(@PathVariable Long id) {
         personService.deletePerson(id);
         return ResponseEntity.noContent().build();

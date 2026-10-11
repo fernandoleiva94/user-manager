@@ -34,6 +34,7 @@ public class PermissionResolutionService {
         if (user.getRole() != null) {
             perms = user.getRole().getPermissions().stream()
                     .map(PermissionEntity::getCode)
+                    .filter(code -> !PermissionService.isPlatformCode(code))
                     .collect(Collectors.toSet());
         }
 

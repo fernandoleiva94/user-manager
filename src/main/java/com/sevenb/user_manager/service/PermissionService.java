@@ -2,6 +2,7 @@ package com.sevenb.user_manager.service;
 
 import com.sevenb.user_manager.entity.PermissionEntity;
 import com.sevenb.user_manager.repository.PermissionRepository;
+import com.sevenb.user_manager.security.PermissionGuard;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Service;
@@ -46,17 +47,42 @@ public class PermissionService implements ApplicationRunner {
             new String[]{"PURCHASES_EDIT",           "Crear, editar y anular compras"},
             new String[]{"PURCHASES_CONFIRM",        "Confirmar compras y aplicar stock"},
             new String[]{"USERS_MANAGE",             "Gestionar usuarios"},
-            new String[]{"ROLES_MANAGE",             "Gestionar roles y permisos"}
+            new String[]{"ROLES_MANAGE",             "Gestionar roles y permisos"},
+            new String[]{"PLATFORM_ADMIN",           "Administrador de la plataforma Centauro"}
     );
 
     public static final List<String> ALL_CODES = CATALOG.stream()
             .map(p -> p[0])
             .collect(Collectors.toList());
 
-    private final PermissionRepository permissionRepository;
+    /** Los códigos de plataforma nunca se asignan por rol: solo por override concedido. */
+    public static final String PLATFORM_PREFIX = "PLATFORM_";
 
-    public PermissionService(PermissionRepository permissionRepository) {
+    private final PermissionRepository permissionRepository;
+    private final PermissionGuard permissionGuard;
+
+    public PermissionService(PermissionRepository permissionRepository, PermissionGuard permissionGuard) {
         this.permissionRepository = permissionRepository;
+        this.permissionGuard = permissionGuard;
+    }
+
+    public static boolean isPlatformCode(String code) {
+        return code != null && code.startsWith(PLATFORM_PREFIX);
+    }
+
+    /** Lanza IllegalArgumentException (400) si la lista incluye algún código de plataforma. */
+    public static void rejectPlatformCodes(Collection<String> codes, String message) {
+        if (codes == null) {
+            return;
+        }
+        List<String> platform = codes.stream()
+                .filter(PermissionService::isPlatformCode)
+                .distinct()
+                .sorted()
+                .toList();
+        if (!platform.isEmpty()) {
+            throw new IllegalArgumentException(message + ": " + String.join(", ", platform));
+        }
     }
 
     @Override
@@ -72,7 +98,13 @@ public class PermissionService implements ApplicationRunner {
     }
 
     public List<PermissionEntity> getAllPermissions() {
-        return permissionRepository.findAll();
+        List<PermissionEntity> all = permissionRepository.findAll();
+        if (permissionGuard.isPlatformAdmin()) {
+            return all;
+        }
+        return all.stream()
+                .filter(p -> !isPlatformCode(p.getCode()))
+                .toList();
     }
 
     public Set<PermissionEntity> findByCodes(Set<String> codes) {

@@ -32,6 +32,8 @@ import com.sevenb.user_manager.repository.UserPermissionOverrideRepository;
 
 import com.sevenb.user_manager.repository.UserRepository;
 
+import com.sevenb.user_manager.security.PermissionGuard;
+
 import com.sevenb.user_manager.security.TenantContext;
 
 import jakarta.transaction.Transactional;
@@ -72,6 +74,8 @@ public class UserService {
 
     private final CurrentUserService currentUserService;
 
+    private final PermissionGuard permissionGuard;
+
 
 
     @Autowired
@@ -82,7 +86,9 @@ public class UserService {
 
                        RoleService roleService, UserPermissionOverrideRepository overrideRepository,
 
-                       PermissionService permissionService, CurrentUserService currentUserService) {
+                       PermissionService permissionService, CurrentUserService currentUserService,
+
+                       PermissionGuard permissionGuard) {
 
         this.userRepository = userRepository;
 
@@ -99,6 +105,8 @@ public class UserService {
         this.permissionService = permissionService;
 
         this.currentUserService = currentUserService;
+
+        this.permissionGuard = permissionGuard;
 
     }
 
@@ -204,6 +212,8 @@ public class UserService {
 
         UserEntity user = getUserForCurrentTenant(id);
 
+        assertCanManagePlatformUser(user);
+
         String tenantId = TenantContext.requireTenantId();
 
         if (RoleService.isAdminRole(user.getRole())) {
@@ -241,6 +251,8 @@ public class UserService {
     public void deleteUser(Long id) {
 
         UserEntity user = getUserForCurrentTenant(id);
+
+        assertCanManagePlatformUser(user);
 
         if (currentUserService.isCurrentUser(user)) {
 
@@ -296,6 +308,8 @@ public class UserService {
 
         UserEntity user = getUserForCurrentTenant(userId);
 
+        assertCanManagePlatformUser(user);
+
         if (RoleService.isAdminRole(user.getRole())) {
 
             assertCurrentUserIsAdmin("Solo un usuario ADMIN puede modificar a otro usuario ADMIN");
@@ -316,7 +330,11 @@ public class UserService {
 
         getUserForCurrentTenant(userId);
 
+        boolean platformAdmin = permissionGuard.isPlatformAdmin();
+
         return overrideRepository.findByUserId(userId).stream()
+
+                .filter(override -> platformAdmin || !PermissionService.isPlatformCode(override.getPermissionCode()))
 
                 .map(userMapper::toOverrideDto)
 
@@ -332,6 +350,8 @@ public class UserService {
 
         UserEntity user = getUserForCurrentTenant(userId);
 
+        assertCanManagePlatformUser(user);
+
         assertNotCurrentUser(user, "No podés modificar tus propios permisos");
 
         if (request.getOverrides() == null) {
@@ -340,11 +360,21 @@ public class UserService {
 
         }
 
-        permissionService.requireExistingCodes(request.getOverrides().stream()
+        List<String> codes = request.getOverrides().stream()
 
                 .map(UserPermissionOverrideRequest.OverrideEntry::getPermissionCode)
 
-                .toList());
+                .toList();
+
+        if (!permissionGuard.isPlatformAdmin()) {
+
+            PermissionService.rejectPlatformCodes(codes,
+
+                    "Solo un administrador de la plataforma puede asignar permisos de plataforma");
+
+        }
+
+        permissionService.requireExistingCodes(codes);
 
 
 
@@ -407,6 +437,25 @@ public class UserService {
         }
 
         user.setRole(newRole);
+
+    }
+
+
+
+    /** Un usuario con un override concedido PLATFORM_* solo lo gestiona un platform admin. */
+    private void assertCanManagePlatformUser(UserEntity user) {
+
+        boolean platformUser = overrideRepository.findByUserId(user.getId()).stream()
+
+                .anyMatch(override -> override.isGranted()
+                        && PermissionService.isPlatformCode(override.getPermissionCode()));
+
+        if (platformUser && !permissionGuard.isPlatformAdmin()) {
+
+            throw new IllegalArgumentException(
+                    "Solo un administrador de la plataforma puede modificar a un usuario con permisos de plataforma");
+
+        }
 
     }
 

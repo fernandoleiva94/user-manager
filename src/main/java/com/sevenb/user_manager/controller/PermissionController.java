@@ -21,7 +21,7 @@ public class PermissionController {
     }
 
     @GetMapping
-    @PreAuthorize("@perm.hasAny('USERS_MANAGE','ROLES_MANAGE')")
+    @PreAuthorize("@perm.isPlatformAdmin() or @perm.hasAny('USERS_MANAGE','ROLES_MANAGE')")
     public ResponseEntity<List<PermissionEntity>> getAllPermissions() {
         return ResponseEntity.ok(permissionService.getAllPermissions());
     }

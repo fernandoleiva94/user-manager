@@ -41,6 +41,11 @@ public class GlobalExceptionHandler {
         return errorBody(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<Map<String, Object>> handleConflict(ConflictException ex) {
+        return errorBody(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, Object>> handleRuntimeException(RuntimeException ex) {
         return errorBody(HttpStatus.NOT_FOUND, ex.getMessage());

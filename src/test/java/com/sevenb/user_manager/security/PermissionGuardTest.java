@@ -81,6 +81,99 @@ class PermissionGuardTest {
         assertThat(shadow.has("USERS_MANAGE")).isFalse();
     }
 
+    @Test
+    void platformAdminRequiresPermissionsClaim() {
+        authenticate("ADMIN", List.of("USERS_MANAGE", "PLATFORM_ADMIN"));
+        assertThat(enforcing.isPlatformAdmin()).isTrue();
+        assertThat(shadow.isPlatformAdmin()).isTrue();
+    }
+
+    @Test
+    void adminRoleIsNotPlatformAdmin() {
+        authenticate("ADMIN", List.of("USERS_MANAGE", "ROLES_MANAGE"));
+        assertThat(enforcing.isPlatformAdmin()).isFalse();
+    }
+
+    @Test
+    void legacyTokenIsNotPlatformAdmin() {
+        authenticate("ADMIN", null);
+        assertThat(enforcing.isPlatformAdmin()).isFalse();
+    }
+
+    @Test
+    void shadowModeDoesNotGrantPlatformAdmin() {
+        authenticate("CAJERO", List.of("SALES_CREATE"));
+        assertThat(shadow.isPlatformAdmin()).isFalse();
+    }
+
+    @Test
+    void noAuthenticationIsNotPlatformAdmin() {
+        assertThat(shadow.isPlatformAdmin()).isFalse();
+    }
+
+    @Test
+    void platformCodesAreNeverGrantedByAdminBypass() {
+        authenticate("ADMIN", List.of("USERS_MANAGE"));
+        assertThat(shadow.has("PLATFORM_ADMIN")).isFalse();
+        assertThat(enforcing.hasAny("PLATFORM_ADMIN")).isFalse();
+        assertThat(enforcing.hasStrict("PLATFORM_ADMIN")).isFalse();
+    }
+
+    @Test
+    void platformCodesAreNeverGrantedToLegacyTokens() {
+        authenticate("CAJERO", null);
+        assertThat(shadow.has("PLATFORM_ADMIN")).isFalse();
+        assertThat(enforcing.has("PLATFORM_ADMIN")).isFalse();
+    }
+
+    @Test
+    void platformCodesAreNeverGrantedByShadowMode() {
+        authenticate("CAJERO", List.of("SALES_CREATE"));
+        assertThat(shadow.has("PLATFORM_ADMIN")).isFalse();
+    }
+
+    @Test
+    void platformCodesAreGrantedToPlatformAdmin() {
+        authenticate("CAJERO", List.of("PLATFORM_ADMIN"));
+        assertThat(enforcing.has("PLATFORM_ADMIN")).isTrue();
+        assertThat(enforcing.hasStrict("PLATFORM_ADMIN")).isTrue();
+    }
+
+    @Test
+    void mixedCodesStillUseRegularRulesForNonPlatformCodes() {
+        authenticate("ADMIN", List.of());
+        assertThat(enforcing.hasAny("PLATFORM_ADMIN", "USERS_MANAGE")).isTrue();
+    }
+
+    @Test
+    void hasStrictAllowsGrantedPermission() {
+        authenticate("SUPERVISOR", List.of("SETTINGS_EDIT"));
+        assertThat(shadow.hasStrict("SETTINGS_EDIT")).isTrue();
+    }
+
+    @Test
+    void hasStrictKeepsTenantAdminBypass() {
+        authenticate("admin", List.of());
+        assertThat(shadow.hasStrict("SETTINGS_EDIT")).isTrue();
+    }
+
+    @Test
+    void hasStrictIgnoresShadowMode() {
+        authenticate("CAJERO", List.of("SALES_CREATE"));
+        assertThat(shadow.hasStrict("SETTINGS_EDIT")).isFalse();
+    }
+
+    @Test
+    void hasStrictDeniesLegacyTokens() {
+        authenticate("CAJERO", null);
+        assertThat(shadow.hasStrict("SETTINGS_EDIT")).isFalse();
+    }
+
+    @Test
+    void hasStrictDeniesWithoutAuthentication() {
+        assertThat(shadow.hasStrict("SETTINGS_EDIT")).isFalse();
+    }
+
     private void storedUser(long id, String username) {
         UserEntity user = new UserEntity();
         user.setId(id);
